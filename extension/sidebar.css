@@ -1,0 +1,158 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1b1b1f;
+  --muted: #6b6b76;
+  --line: #d9d9e0;
+  --accent: #7b1252;
+  --clash: #d62728;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1f1f24;
+    --fg: #ececf1;
+    --muted: #9a9aa6;
+    --line: #3a3a44;
+    --accent: #e0609f;
+  }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.4 system-ui, sans-serif;
+}
+main {
+  padding: 8px 12px 24px;
+}
+section {
+  border-bottom: 1px solid var(--line);
+  padding: 10px 0;
+}
+h2 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+p {
+  margin: 4px 0;
+}
+.hint,
+.status {
+  color: var(--muted);
+}
+input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.name {
+  width: 100%;
+  box-sizing: border-box;
+}
+button {
+  font: inherit;
+  border: 0;
+  border-radius: 4px;
+  padding: 5px 10px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
+.link {
+  display: flex;
+  gap: 6px;
+  margin: 6px 0;
+}
+.link input {
+  flex: 1;
+  min-width: 0;
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+}
+.swatch.picked {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.players .offline {
+  color: var(--muted);
+}
+.on-clue {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.suggestion {
+  border-left: 4px solid;
+  padding: 6px 8px;
+  margin: 8px 0;
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  border-radius: 4px;
+}
+.suggestion .clue {
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+.letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.letters span {
+  width: 20px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.letters .blank {
+  color: var(--muted);
+  font-weight: 400;
+}
+.letters .clash {
+  border-color: var(--clash);
+  color: var(--clash);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}

@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "Group Crossword",
+  "version": "0.1.0",
+  "description": "Solve crosswords on Crosshare and Courier Mail together with friends.",
+  "icons": { "48": "icon.svg", "96": "icon.svg" },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "group-crossword@camcook314",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": { "required": ["websiteContent"] }
+    }
+  },
+  "permissions": ["storage"],
+  "background": { "scripts": ["background.js"], "persistent": true },
+  "browser_action": { "default_title": "Group Crossword", "default_icon": "icon.svg" },
+  "sidebar_action": { "default_title": "Group Crossword", "default_panel": "sidebar.html", "default_icon": "icon.svg", "open_at_install": false },
+  "content_scripts": [
+    { "matches": ["https://crosshare.org/*"], "js": ["content-crosshare.js"] },
+    { "matches": ["https://*.amuselabs.com/*", "https://*.couriermail.com.au/*"], "js": ["content-puzzleme.js"], "all_frames": true }
+  ]
+}

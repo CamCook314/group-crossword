@@ -1,0 +1,301 @@
+:root {
+  --bg: #f6f6f8;
+  --surface: #ffffff;
+  --fg: #1b1b1f;
+  --muted: #6b6b76;
+  --line: #c9c9d2;
+  --cell: #ffffff;
+  --block: #1b1b1f;
+  --accent: #7b1252;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171b;
+    --surface: #1f1f24;
+    --fg: #ececf1;
+    --muted: #9a9aa6;
+    --line: #3a3a44;
+    --cell: #2a2a31;
+    --block: #050506;
+    --accent: #e0609f;
+  }
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.4 system-ui, sans-serif;
+}
+button {
+  font: inherit;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 14px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+input {
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.center {
+  text-align: center;
+  margin-top: 20vh;
+  color: var(--muted);
+}
+
+/* Join form */
+.join {
+  max-width: 320px;
+  margin: 15vh auto 0;
+  padding: 0 16px;
+  display: grid;
+  gap: 14px;
+}
+.join h1 {
+  margin: 0;
+  font-size: 22px;
+}
+.join label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.swatch {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+}
+.swatch.picked {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+
+/* Connection banner and toast */
+.banner {
+  background: #fff3cd;
+  color: #5c4500;
+  padding: 8px 16px;
+  text-align: center;
+}
+.banner button {
+  margin-left: 8px;
+  padding: 2px 10px;
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  background: var(--fg);
+  color: var(--bg);
+  padding: 8px 16px;
+  border-radius: 6px;
+}
+
+/* Solver */
+.solver {
+  --size: min(560px, calc(100vw - 32px), calc(100vh - 150px));
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 12px 16px;
+}
+.clue-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: color-mix(in srgb, var(--me) 18%, var(--surface));
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  min-height: 48px;
+}
+.clue-bar-text {
+  flex: 1;
+  font-size: 17px;
+}
+.main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: flex-start;
+}
+.grid {
+  width: var(--size);
+  display: grid;
+  grid-template-columns: repeat(var(--cols), 1fr);
+  border: 2px solid var(--block);
+  background: var(--block);
+  gap: 1px;
+  user-select: none;
+  flex: none;
+}
+.cell {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--cell);
+  font-size: calc(var(--size) / var(--cols));
+  cursor: pointer;
+}
+.cell.block {
+  background: var(--block);
+  cursor: default;
+}
+.cell.in-clue {
+  background: color-mix(in srgb, var(--me) 22%, var(--cell));
+}
+.cell.cursor {
+  background: color-mix(in srgb, var(--me) 55%, var(--cell));
+}
+.num {
+  position: absolute;
+  top: 0.04em;
+  left: 0.08em;
+  font-size: 0.26em;
+  line-height: 1;
+}
+.letter {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.58em;
+  font-weight: 600;
+  padding-top: 0.08em;
+}
+.letter.draft {
+  color: var(--me);
+  font-style: italic;
+}
+.mark {
+  position: absolute;
+  font-size: 0.28em;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.8;
+}
+.mark.m0 {
+  top: 0.08em;
+  right: 0.12em;
+}
+.mark.m1 {
+  bottom: 0.08em;
+  right: 0.12em;
+}
+.mark.m2 {
+  bottom: 0.08em;
+  left: 0.12em;
+}
+
+/* Clue lists */
+.clues {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  gap: 16px;
+  max-height: var(--size);
+}
+.clue-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: var(--size);
+}
+.clue-list h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  padding: 2px 0 4px;
+}
+.clue-list ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.clue-list li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 5px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.clue-list li:hover {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+}
+.clue-list li.current {
+  background: color-mix(in srgb, var(--me) 22%, var(--surface));
+}
+.clue-list .n {
+  font-weight: 700;
+  min-width: 1.6em;
+  text-align: right;
+}
+.clue-list .t {
+  flex: 1;
+}
+.badge {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  color: #fff;
+  font: 700 11px/20px system-ui, sans-serif;
+  text-align: center;
+}
+
+/* Footer */
+.footer {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  align-items: center;
+  color: var(--muted);
+}
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  color: var(--fg);
+}
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.help {
+  margin: 0;
+  font-size: 13px;
+}

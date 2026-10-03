@@ -26,6 +26,7 @@ Status: ⏳ to do, ❓ needs a decision, ✅ done.
 | 7 | Example: PLANK suggested for 1A and PETAL for 1D. Accepting PLANK, without accepting PETAL, didn't fill in the shared P. | Find out why and fix it, with a test. | ⏳ |
 | 8 | Players should be able to delete their own suggestions. | A ✕ on your own suggestion in the strip under the clue bar. | ⏳ |
 | 9 | Newer suggestions for the same squares should override older ones without deleting them. Suggesting single squares one at a time currently wipes the earlier ones, because the other squares are sent blank. | Same player, same clue: new letters merge into the earlier suggestion. Blanks keep the earlier letters, and new letters replace old ones in the same square. | ⏳ |
+| 26 | The host should be able to suggest too, when not confident. | A "Write in / Suggest" switch on the host's full view. Suggest works like a guest's: drafts, then Enter. With trusted friends on, the host's own suggestions still wait for someone to agree. | ⏳ |
 | 10 | Finishing an answer jumps to the next clue, so Enter then suggests the wrong clue. | Guests in co-op stay on the answer they've just filled. Typing straight in, as the host or a racer, still moves on. | ⏳ |
 
 ## Grid, clues and layout

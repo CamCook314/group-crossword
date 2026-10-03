@@ -95,7 +95,8 @@ function App() {
       {state?.mode === 'race' && (
         <Race state={state} me={profile.clientId} send={m => conn.current?.send(m)} notice={notice} restore={restore} />
       )}
-      {state?.mode === 'coop' && <Board state={state} me={profile.clientId} send={m => conn.current?.send(m)} />}
+      {/* Extensions before race mode (0.3.0 and earlier) don't send a mode: that's co-op. */}
+      {state && state.mode !== 'race' && <Board state={state} me={profile.clientId} send={m => conn.current?.send(m)} />}
       {toast && <div class="toast">{toast}</div>}
     </>
   );

@@ -169,7 +169,7 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 | 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / penalty + cooldown, finished, results | A full race works end to end | ✅ |
 | 5. Host plays | Play button and window | The host can race alongside guests | ✅ (the Play window was checked in the e2e test; racing in it is the same as any racer) |
 | 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty and cooldown, late join, rejoin, places, results | `npm run e2e` passes | ✅ `npm run e2e:race`, both sites, 2026-10-03. Ending by itself when everyone has finished is unit tested only |
-| 7. Ship | Docs, version bump, merge to `main`, deploy, sign | Used in a real race | |
+| 7. Ship | Docs, version bump, merge to `main`, deploy, sign | Used in a real race | ✅ merged to `main` and deployed 2026-10-03 (checked that the installed 0.3.0 still works with the new guest page). ⏳ sign and install 0.4.0, then a real race |
 
 ## Branching
 

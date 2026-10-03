@@ -23,6 +23,7 @@ if (want('guest')) {
   mkdirSync('guest/dist', { recursive: true });
   cpSync('guest/index.html', 'guest/dist/index.html');
   cpSync('guest/style.css', 'guest/dist/style.css');
+  cpSync('shared/grid.css', 'guest/dist/grid.css');
   const options = { ...common, entryPoints: ['guest/src/main.tsx'], outfile: 'guest/dist/main.js', target: 'es2020' };
   if (serve) {
     const ctx = await esbuild.context(options);
@@ -38,6 +39,7 @@ if (want('extension')) {
   rmSync('extension/dist', { recursive: true, force: true });
   mkdirSync('extension/dist', { recursive: true });
   for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
+  cpSync('shared/grid.css', 'extension/dist/grid.css');
   await esbuild.build({
     ...common,
     entryPoints: {

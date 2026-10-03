@@ -138,54 +138,6 @@ input {
   gap: 20px;
   align-items: flex-start;
 }
-.grid {
-  width: var(--size);
-  display: grid;
-  grid-template-columns: repeat(var(--cols), 1fr);
-  border: 2px solid var(--block);
-  background: var(--block);
-  gap: 1px;
-  user-select: none;
-  flex: none;
-}
-.cell {
-  position: relative;
-  aspect-ratio: 1;
-  background: var(--cell);
-  font-size: calc(var(--size) / var(--cols));
-  cursor: pointer;
-}
-.cell.block {
-  background: var(--block);
-  cursor: default;
-}
-.cell.in-clue {
-  background: color-mix(in srgb, var(--me) 22%, var(--cell));
-}
-.cell.cursor {
-  background: color-mix(in srgb, var(--me) 55%, var(--cell));
-}
-.top-left {
-  position: absolute;
-  top: 0.04em;
-  left: 0.08em;
-  display: flex;
-  align-items: flex-start;
-  gap: 0.08em;
-  line-height: 1;
-}
-.num {
-  font-size: 0.26em;
-}
-.letter {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-size: 0.58em;
-  font-weight: 600;
-  padding-top: 0.08em;
-}
 .letter.draft {
   color: var(--me);
   font-style: italic;
@@ -212,68 +164,6 @@ input {
   bottom: 0.12em;
   right: 0.15em;
 }
-
-/* Clue lists */
-.clues {
-  flex: 1;
-  min-width: 300px;
-  display: flex;
-  gap: 16px;
-  max-height: var(--size);
-}
-.clue-list {
-  flex: 1;
-  overflow-y: auto;
-  max-height: var(--size);
-}
-.clue-list h3 {
-  margin: 0 0 4px;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-  position: sticky;
-  top: 0;
-  background: var(--bg);
-  padding: 2px 0 4px;
-}
-.clue-list ol {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.clue-list li {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 5px 6px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.clue-list li:hover {
-  background: color-mix(in srgb, var(--fg) 6%, transparent);
-}
-.clue-list li.current {
-  background: color-mix(in srgb, var(--me) 22%, var(--surface));
-}
-.clue-list .n {
-  font-weight: 700;
-  min-width: 1.6em;
-  text-align: right;
-}
-.clue-list .t {
-  flex: 1;
-}
-.badge {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  color: #fff;
-  font: 700 11px/20px system-ui, sans-serif;
-  text-align: center;
-}
-
 /* Footer */
 .footer {
   margin-top: 16px;

@@ -23,10 +23,10 @@ for (const racer of [sam, ana]) await racer.manage().window().setRect({ width: 1
 const text = async (driver, css) => driver.findElement(By.css(css)).getText();
 const button = (driver, label) => until(`${label} button`, () => driver.findElement(By.xpath(`//button[normalize-space(.)='${label}']`)));
 /** The letters in a racer's own grid, by square. */
-const racerLetters = racer => racer.executeScript(`return [...document.querySelectorAll('.solver .grid .cell')].map(c => c.querySelector('.letter')?.textContent ?? '')`);
+const racerLetters = racer => racer.executeScript(`return [...document.querySelectorAll('.grid-box .cell')].map(c => c.querySelector('.letter')?.textContent ?? '')`);
 /** Types into a racer's grid square by square: [square, letter] pairs. */
 async function type(racer, entries) {
-  const cells = await racer.findElements(By.css('.solver .grid .cell'));
+  const cells = await racer.findElements(By.css('.grid-box .cell'));
   let actions = racer.actions();
   for (const [cell, letter] of entries) actions = actions.move({ origin: cells[cell] }).press().release().sendKeys(letter.toLowerCase());
   await actions.perform();
@@ -73,13 +73,15 @@ try {
   step(`Sam is in the lobby; host set a ${PENALTY} s penalty and Sam sees the rule`);
 
   let anaJoined = false;
-  for (const name of sites) {
+  for (const [i, name] of sites.entries()) {
     const site = SITES[name];
     console.log(`${name}:`);
     await host.switchTo().window(siteWindow);
     await site.open(host);
     const squares = await host.executeScript(`return document.querySelectorAll(arguments[0]).length`, site.cells);
     await raceView();
+    // With a session running, a newly opened crossword is offered rather than taking over.
+    if (i > 0) await (await button(host, 'Play it instead')).click();
     // Wait for this puzzle (not the previous one) and its answers.
     const side = Math.sqrt(squares);
     const answerStatus = await until('answers found', async () => {
@@ -90,7 +92,7 @@ try {
     // Play opens the racer's page for the host, in a new window, with their name filled in.
     if (name === sites[0]) {
       const windows = await host.getAllWindowHandles();
-      await (await button(host, 'Play')).click();
+      await (await button(host, 'Join as a racer')).click();
       await switchToNewWindow(host, windows, 'Play window');
       const url = await until('Play window address', async () => {
         const u = await host.getCurrentUrl();
@@ -99,21 +101,21 @@ try {
       if (!url.includes(`#${roomId}?name=Host&color=`)) throw new Error(`Play opened ${url}`);
       await host.close();
       await raceView();
-      step('Play opens the race page in a new window with the host’s name and colour filled in');
+      step('"Join as a racer" opens the race page in a new window with the host’s name and colour filled in');
     }
 
     // --- Start: countdown, then the grid ---
     await (await button(host, 'Start race')).click();
     await until('race view counts down', () => host.findElement(By.css('.countdown')));
     await until('Sam sees the countdown', () => sam.findElement(By.css('.countdown')));
-    await until('Sam gets the grid', async () => (await sam.findElements(By.css('.solver .grid .cell'))).length === squares, 10000);
+    await until('Sam gets the grid', async () => (await sam.findElements(By.css('.grid-box .cell'))).length === squares, 10000);
     step(`${answerStatus.split('· ')[1]}; Start ran a 3-2-1 countdown, then Sam got the ${squares}-square grid`);
 
     // --- The answers, from the site's own Reveal (the race already has its own copy) ---
     await host.switchTo().window(siteWindow);
     await site.enter(host);
     await site.reveal(host);
-    const white = (await sam.findElements(By.css('.solver .grid .cell:not(.block)'))).length;
+    const white = (await sam.findElements(By.css('.grid-box .cell:not(.block)'))).length;
     const answers = await until('revealed grid', async () => {
       const a = await readSite(host, site);
       return a.filter(Boolean).length === white && a;
@@ -152,12 +154,12 @@ try {
     const wrongAgain = lastLetter === 'X' ? 'W' : 'X';
     await type(sam, [...entries.slice(half, -1), [lastCell, wrong]]);
     await until('Sam is told not quite, with a penalty', async () => {
-      const t = await text(sam, '.notice');
+      const t = await text(sam, '.toast-item.notice');
       return t.startsWith('Not quite') && t.includes(`+0:0${PENALTY} penalty`);
     });
     await type(sam, [[lastCell, wrongAgain]]);
     await until('the second wrong grid costs nothing', async () => {
-      const notices = await Promise.all((await sam.findElements(By.css('.notice'))).map(n => n.getText()));
+      const notices = await Promise.all((await sam.findElements(By.css('.toasts .toast-item'))).map(n => n.getText()));
       return notices.some(t => t.startsWith('Not quite') && !t.includes('penalty')) && notices.some(t => t.startsWith('Free fixes'));
     });
     await raceView();
@@ -176,9 +178,11 @@ try {
     await until('Ana sees Sam has finished', async () => (await text(ana, '.progress-row[data-player="Sam"] .pct')).includes('Finished 1st'));
     await raceView();
     await until('race view marks Ana’s wrong square', async () => (await host.findElements(By.css('.card[data-racer="Ana"] .cell.wrong'))).length === 1);
+    // Sam has finished, so he can watch Ana's grid live.
+    await until('Sam sees Ana’s grid, her wrong square marked', async () => (await sam.findElements(By.css('.live-boards .cell.wrong'))).length === 1);
     await shot(host, `race-${name}-view`);
     await shot(ana, `race-${name}-ana`);
-    step('Sam finished 1st; Ana sees it in the progress bars; the race view marks Ana’s wrong square');
+    step('Sam finished 1st; Ana sees it in the progress bars; the race view, and Sam (now watching live), see Ana’s wrong square');
 
     // --- The host ends the race: results for everyone ---
     await (await button(host, 'End race')).click();

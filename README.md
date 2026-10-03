@@ -1,7 +1,8 @@
 # Group Crossword
 
-Solve crosswords on Crosshare or Courier Mail together. The host plays on the real site in Firefox;
-friends join from a link, pick clues, and suggest answers that the host accepts or rejects.
+Solve crosswords on Crosshare or Courier Mail together. The host opens the crossword in Firefox and everyone plays in
+Group Crossword's copy of it: the host on a full-page view, friends from a link, suggesting answers that the host
+accepts or rejects. Once it's solved, one click fills it in on the real site.
 See [PLAN.md](PLAN.md) for how it works.
 
 ## Host
@@ -33,22 +34,29 @@ copy doesn't work.
 2. Click the **Group Crossword** toolbar button (or View → Sidebar) to open the sidebar. Set your name and colour
    (a preset, or the rainbow swatch for a colour wheel).
 3. **Start session**, then **Copy** the link and send it to your friends.
-4. Suggestions appear in the sidebar, and faintly in the corners of your real grid. **Accept** types them in; **Reject** tells the guest;
-   **Undo accept** puts back whatever the last accepted suggestion changed. Identical suggestions from several people combine
-   into one card at the top of the list.
-5. Choose when friends' answers go in: when you accept them, automatically once 2 or more agree, or automatically
-   (for trusted friends).
-6. **Open full view** gives you a full-page board: type there and it goes straight onto the crossword. The suggestions,
-   players, anagram pad and replay sit alongside.
+4. **Open full view** and play there: **Write in** puts your letters straight into the grid, **Suggest** makes them a
+   suggestion like everyone else's (for when you're not sure). Once play starts there, the crossword's own page is left
+   alone (it says so); letters typed on it aren't shared.
+5. Suggestions appear beside the board (and in the sidebar), and in the corners of the squares. **Accept** puts them in;
+   **Reject** tells the guest; **Undo accept** puts back whatever the last accepted suggestion changed. Identical
+   suggestions from several people combine into one card at the top of the list.
+6. Choose when friends' answers go in: when you accept them, automatically once 2 or more agree, or automatically
+   (for trusted friends; your own suggestions still wait for someone to agree).
+7. **Check** a square, the answer or the whole grid: wrong squares turn red for everyone.
+8. When it's solved, everyone sees "Solved! 🎉" and you get **Fill in the crossword**, which types it into the real site.
+
+Opening another crossword in another tab doesn't disturb the session: the full view and sidebar offer **Play it instead**.
 
 ### Racing
 
 1. In the sidebar, switch to **Race** and press **Open full view**.
-2. Start the session there and send the link. People who join wait in the lobby.
+2. Start the session there and send the link. People who join wait in the lobby. To race a different crossword,
+   open it and press **Play it instead** in the lobby.
 3. Pick the settings: whether racers see how far everyone else has got, and an optional time penalty (with a cooldown)
    for a full grid that's wrong.
 4. **Start race**: a 3-2-1 countdown, then everyone races on their own grid. The full view shows every board with
-   % correct, times and places. **Play** opens your own racing window.
+   % correct, times and places. **Join as a racer** opens your own racing window. Racers who finish can watch
+   everyone else's grid live.
 5. The race ends when everyone has finished, or when you press **End race**; everyone then sees the results: those who
    finished by time, then everyone else by squares correct, and a replay of the race. **New race** goes back to the lobby.
 
@@ -57,15 +65,20 @@ If you race yourself, don't look at the full view or the crossword tab while you
 
 ## Guests
 
-Open the link and pick a name and colour (the rainbow swatch opens a colour wheel). Click a clue or square and type to draft
-letters, press **Enter** to suggest them (partial answers are fine), **Esc** to clear. Suggestions show in the corners of the
+Open the link and pick a name and colour (the rainbow swatch opens a colour wheel); the join screen shows who's already
+there. Click a clue or square and type to draft letters, press **Enter** to suggest them (partial answers are fine;
+suggesting more letters for the same clue adds to your suggestion), **Esc** to clear. Suggestions show in the corners of the
 squares, filled top-right, top-left, bottom-left, bottom-right in the order they were made; a letter several people agree on
 shows once, in grey, top-right. Each player's initial sits next to the clue they're on.
 
-- **👍 Agree** (under the clue bar) backs someone else's suggestion for the clue you're on, without retyping it.
-- **Space** switches direction; **Tab** goes to the next clue. Filled squares are skipped as you type.
-- **Anagram** opens a scratchpad: type the letters, click them into the answer's squares, then **Use**.
-- **Replay** (at the bottom) plays back the solve so far.
+- **👍 Agree** (beside the clue lists) backs someone else's suggestion for the clue you're on, without retyping it;
+  **✕ Take back** withdraws yours.
+- **Space** switches direction; **Tab** goes to the next clue. Filled squares are skipped as you type, and finished
+  clues are greyed out.
+- **Anagram**: type the letters, click a square to choose where the next one goes, click letters into the answer's
+  squares, then **Use**. **Define** looks up a word's meanings and synonyms.
+- Under the grid: **−** / **+** zoom, **Notes** opens a private scratchpad, **Replay** plays back the solve so far.
+- **Change your name or colour** (at the bottom) works mid-game.
 
 ## Development
 

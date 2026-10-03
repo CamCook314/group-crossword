@@ -74,6 +74,14 @@ function App() {
             {status.answers === 'reading' ? 'reading…' : status.answers === 'none' ? 'not found' : `${status.answers} squares ✓`}
           </p>
         )}
+        {status.otherPuzzle && (
+          <p class="hint">
+            Also open: {status.otherPuzzle.title}{' '}
+            <button class="secondary" onClick={() => send({ type: 'switch-puzzle' })}>
+              Play it instead
+            </button>
+          </p>
+        )}
       </section>
 
       {mode === 'race' && (

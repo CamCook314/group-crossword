@@ -261,24 +261,45 @@ header.top .modes {
   margin-top: 15vh;
 }
 
-/* Co-op: the board, with the suggestion queue and players beside it */
+/* Co-op: the board filling the window, with the suggestion queue and players beside it */
+main.fill {
+  max-width: none;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 12px;
+}
+main.fill header.top {
+  flex: none;
+}
 .coop {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 20px;
-  align-items: start;
-}
-@media (max-width: 1100px) {
-  .coop {
-    grid-template-columns: 1fr;
-  }
 }
 .coop .solver {
+  height: 100%;
+  min-height: 0;
   padding: 0;
-  max-width: none;
+}
+.coop aside {
+  overflow-y: auto;
 }
 .coop aside section {
   margin: 0 0 12px;
+}
+.other-puzzle p {
+  margin: 0 0 8px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.check button {
+  padding: 3px 10px;
 }
 .coop .players {
   list-style: none;

@@ -1,10 +1,11 @@
-// The host's hub: holds the session, talks to the guests over WebRTC, to the crossword page, the sidebar and the
-// full-page host view.
+// The host's hub: holds the session and the shared grid, talks to the guests over WebRTC, to the crossword pages, the
+// sidebar and the full-page host view.
 import { Peer, type DataConnection } from 'peerjs';
 import type { Solutions } from '../../shared/answers';
 import {
   COLORS,
   GUEST_URL,
+  normalizeLetter,
   parseGuestMessage,
   type AcceptMode,
   type HostMessage,
@@ -13,12 +14,14 @@ import {
   type Suggestion,
 } from '../../shared/protocol';
 import { puzzleKey } from '../../shared/puzzle';
+import { isSolved, squareStatus } from '../../shared/race';
 import type { ReplayEvent } from '../../shared/replay';
 import { AGREED_BY, cellsToApply, groupSuggestions, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
 import { type Command, type FromAdapter, type FullViewStatus, type HostProfile, type Mode, type PageSnapshot, type RaceViewStatus, type SidebarStatus, type ToAdapter } from './messages';
 import { RaceHost } from './raceHost';
 
 const HOST_ID = 'host';
+const NOTICE = 'Group Crossword: this crossword is being played in the full view. It gets filled in here once it’s solved.';
 
 interface Session {
   roomId: string;
@@ -30,10 +33,23 @@ interface Session {
 
 let host: HostProfile = { name: 'Host', color: COLORS[0] };
 let acceptMode: AcceptMode = 'manual';
+/** Every crossword page open, the one that reported most recently last. */
+const pages = new Map<browser.runtime.Port, PageSnapshot>();
+/** The crossword being played, as its page last showed it. Opening another crossword doesn't change it. */
 let page: PageSnapshot | null = null;
-/** The answers the page reported, for the puzzle with this key. Kept here only: never part of the room state. */
-let answers: { puzzleKey: string; solutions: Solutions | null } | null = null;
-let adapter: browser.runtime.Port | null = null;
+/**
+ * Co-op: the shared grid. It follows the site's letters until play starts here (the first letter written or accepted);
+ * after that the site is left alone until the host fills it in.
+ */
+let grid: string[] = [];
+let fromSite = true;
+/** Co-op: squares the host checked and found wrong, and the latest check. */
+let wrong = new Set<number>();
+let check: RoomState['check'] = null;
+/** The clue the host has selected on the full view. */
+let hostClueId: string | null = null;
+/** Answers by puzzle key, as the pages read them. Kept here only: never part of the room state. */
+const answers = new Map<string, Solutions | null>();
 const sidebars = new Set<browser.runtime.Port>();
 const fullViews = new Set<browser.runtime.Port>();
 let mode: Mode = 'coop';
@@ -41,20 +57,26 @@ const race = new RaceHost(() => update());
 const guests = new Map<string, Player>();
 let suggestions: Suggestion[] = [];
 let session: Session | null = null;
-/** What the last accepted suggestion changed on the site, so it can be undone. */
+/** What the last accepted suggestion changed in the grid, so it can be undone. */
 let lastAccept: { playerIds: string[]; clueId: string; changes: { cell: number; before: string; after: string }[] } | null = null;
-/** Suggestion cards already put in automatically (clue + letters), so they're never typed twice. */
+/** Suggestion cards already put in automatically (clue + letters), so they're never put in twice. */
 let autoAccepted = new Set<string>();
-/** The co-op solve so far, for the replay: every letter change on the site and who made it. */
+/** The co-op solve so far, for the replay: every letter change in the grid and who made it. */
 let history: { startedAt: number | null; events: ReplayEvent[] } = { startedAt: null, events: [] };
-/** Letters on their way into the site, and whose they are, so the replay can credit them. */
-const typing = new Map<number, { letter: string; by: string }>();
 
 browser.storage.local.get(['host', 'acceptMode']).then(stored => {
   if (stored.host) host = stored.host as HostProfile;
   if (stored.acceptMode) acceptMode = stored.acceptMode as AcceptMode;
   update();
 });
+
+const samePuzzle = (p: PageSnapshot) => Boolean(page) && puzzleKey(p.puzzle) === puzzleKey(page!.puzzle);
+const solutions = () => (page && answers.get(puzzleKey(page.puzzle))) ?? null;
+/** The open page showing the crossword being played, if any. */
+const sitePort = () => [...pages].reverse().find(([, p]) => samePuzzle(p))?.[0] ?? null;
+/** The latest other crossword open, if any. */
+const otherPage = () => [...pages.values()].reverse().find(p => !samePuzzle(p)) ?? null;
+const pagePuzzle = (p: PageSnapshot | null) => p && { title: p.puzzle.title, rows: p.puzzle.rows, cols: p.puzzle.cols };
 
 function roomState(): RoomState {
   if (mode === 'race') {
@@ -65,6 +87,9 @@ function roomState(): RoomState {
       letters: [],
       players: [...guests.values()],
       suggestions: [],
+      wrong: [],
+      check: null,
+      finished: null,
       race: race.stateForRacers(Date.now()),
     };
   }
@@ -72,11 +97,28 @@ function roomState(): RoomState {
     mode,
     acceptMode,
     puzzle: page?.puzzle ?? null,
-    letters: page?.letters ?? [],
-    players: [{ id: HOST_ID, ...host, clueId: page?.clueId ?? null, host: true, online: true }, ...guests.values()],
+    letters: grid,
+    players: [{ id: HOST_ID, ...host, clueId: hostClueId ?? page?.clueId ?? null, host: true, online: true }, ...guests.values()],
     suggestions,
+    wrong: [...wrong],
+    check,
+    finished: finished(),
     race: null,
   };
+}
+
+/** Once every square is filled: solved, wrong, or just full when there are no answers to check. */
+function finished(): RoomState['finished'] {
+  if (!page || page.puzzle.blocks.some((block, cell) => !block && !grid[cell])) return null;
+  const s = solutions();
+  return !s ? 'full' : isSolved(s, grid) ? 'solved' : 'wrong';
+}
+
+function fillIn(): SidebarStatus['fillIn'] {
+  const done = finished();
+  if (mode !== 'coop' || !page || (done !== 'solved' && done !== 'full')) return null;
+  if (grid.every((letter, cell) => page!.letters[cell] === letter)) return 'done';
+  return sitePort() ? 'ready' : 'no-tab';
 }
 
 const onlineIds = () => [...guests.values()].filter(p => p.online).map(p => p.id);
@@ -85,14 +127,15 @@ const replay = () => ({ events: history.events, durationMs: history.events.at(-1
 
 /** Pushes the current state everywhere. Called after every change. */
 function update() {
-  suggestions = pruneSuggestions(suggestions, page?.puzzle ?? null, page?.letters ?? []);
   autoAccept();
+  suggestions = pruneSuggestions(suggestions, page?.puzzle ?? null, grid);
   const state = roomState();
-  const pagePuzzle = page && { title: page.puzzle.title, rows: page.puzzle.rows, cols: page.puzzle.cols };
   const status: SidebarStatus = {
     mode,
     racePhase: race.phase,
-    pagePuzzle,
+    pagePuzzle: pagePuzzle(page),
+    otherPuzzle: pagePuzzle(otherPage()),
+    fillIn: fillIn(),
     state,
     host,
     session: link(),
@@ -104,8 +147,9 @@ function update() {
     const raceView: RaceViewStatus = {
       host,
       session: link(),
-      pagePuzzle,
-      answers: answerStatus(),
+      pagePuzzle: status.pagePuzzle,
+      otherPuzzle: status.otherPuzzle,
+      answers: status.answers,
       phase: race.phase,
       settings: race.settings,
       puzzle: race.puzzle,
@@ -118,41 +162,86 @@ function update() {
     const full: FullViewStatus = { sidebar: status, race: raceView, replay: replay() };
     for (const port of fullViews) port.postMessage(full);
   }
-  // The overlay on the real crossword is for co-op only (word breaks show even before a session starts).
-  adapter?.postMessage({ type: 'overlay', state: mode === 'coop' ? state : null } satisfies ToAdapter);
-  if (session) sendToGuests({ t: 'state', state });
+  // Once play has moved here, the crossword's own page says so.
+  const notice = mode === 'coop' && !fromSite ? NOTICE : null;
+  for (const [port, p] of pages) port.postMessage({ type: 'notice', text: samePuzzle(p) ? notice : null } satisfies ToAdapter);
+  if (session) {
+    sendToGuests({ t: 'state', state });
+    // Racers who have finished know every answer, so they can watch everyone else's grid.
+    if (race.running) {
+      const details = race.details();
+      const boards = details.map(({ id, letters, status }) => ({ id, letters, status }));
+      for (const r of details) if (r.finishedAt !== null) sendToGuests({ t: 'race-boards', boards }, r.id);
+    }
+  }
 }
 
 function answerStatus(): SidebarStatus['answers'] {
   if (!page) return null;
-  if (answers?.puzzleKey !== puzzleKey(page.puzzle)) return 'reading';
-  return answers.solutions ? answers.solutions[0].filter(Boolean).length : 'none';
+  const key = puzzleKey(page.puzzle);
+  if (!answers.has(key)) return 'reading';
+  const s = answers.get(key);
+  return s ? s[0].filter(Boolean).length : 'none';
 }
 
+/** Sends to everyone connected (including people still on the join screen), or to one player. */
 function sendToGuests(msg: HostMessage, onlyClientId?: string) {
   for (const [conn, clientId] of session?.conns ?? []) {
-    if (conn.open && clientId && (!onlyClientId || clientId === onlyClientId)) conn.send(msg);
+    if (conn.open && (!onlyClientId || clientId === onlyClientId)) conn.send(msg);
   }
 }
 
-/** Types letters into the real crossword ('' clears), crediting them to `by` in the replay. */
-function applyLetters(cells: { cell: number; letter: string }[], by: string) {
-  if (!adapter || !cells.length) return;
-  for (const { cell, letter } of cells) typing.set(cell, { letter, by });
-  adapter.postMessage({ type: 'apply', cells } satisfies ToAdapter);
+/** Puts letters into the shared grid ('' clears), crediting them to `by` in the replay. */
+function setLetters(cells: { cell: number; letter: string }[], by: string) {
+  if (!page) return;
+  const blocks = page.puzzle.blocks;
+  const changed = cells.filter(({ cell, letter }) => cell >= 0 && cell < blocks.length && !blocks[cell] && grid[cell] !== letter);
+  if (!changed.length) return;
+  for (const { cell, letter } of changed) {
+    grid[cell] = letter;
+    wrong.delete(cell);
+  }
+  const now = Date.now();
+  history.startedAt ??= now;
+  history.events.push({ at: now - history.startedAt, board: 'shared', by, cells: changed.map(({ cell, letter }) => [cell, letter]) });
 }
 
-/** Puts a suggestion card (everyone who suggested these letters for this clue) onto the crossword. */
+/** Starts playing a crossword: the grid as the site shows it, and nothing left over from the last one. */
+function usePuzzle(snapshot: PageSnapshot) {
+  page = snapshot;
+  grid = snapshot.puzzle.blocks.map(() => '');
+  fromSite = true;
+  suggestions = [];
+  lastAccept = null;
+  autoAccepted = new Set();
+  wrong = new Set();
+  check = null;
+  hostClueId = null;
+  history = { startedAt: null, events: [] };
+  // Letters already there open the replay.
+  setLetters(snapshot.letters.map((letter, cell) => ({ cell, letter })), HOST_ID);
+}
+
+function onPage(snapshot: PageSnapshot) {
+  if (page && samePuzzle(snapshot)) {
+    page = snapshot;
+    if (fromSite) setLetters(snapshot.letters.map((letter, cell) => ({ cell, letter })), HOST_ID);
+  } else if (!page || (!session && fromSite && !race.running)) {
+    // Before anyone is playing, follow whichever crossword the host opens; after that it's offered to switch to.
+    usePuzzle(snapshot);
+  }
+}
+
+/** Puts a suggestion card (everyone who suggested these letters for this clue) into the grid. */
 function acceptGroup(clueId: string, letters: string[]): boolean {
   const group = suggestions.filter(x => x.clueId === clueId && sameLetters(x.letters, letters));
-  if (!group.length || !page || !adapter) return false;
-  const current = page.letters;
+  if (!group.length || !page) return false;
   const changes = cellsToApply(page.puzzle, group[0])
-    .map(({ cell, letter }) => ({ cell, before: current[cell], after: letter }))
+    .map(({ cell, letter }) => ({ cell, before: grid[cell], after: letter }))
     .filter(c => c.before !== c.after);
   lastAccept = changes.length ? { playerIds: group.map(x => x.playerId), clueId, changes } : null;
-  // The suggestions disappear by themselves once their letters show up on the site.
-  applyLetters(
+  fromSite = false;
+  setLetters(
     changes.map(c => ({ cell: c.cell, letter: c.after })),
     group.length > 1 ? AGREED_BY : group[0].playerId,
   );
@@ -166,25 +255,25 @@ function autoAccept() {
   const key = (g: { clueId: string; letters: string[] }) => `${g.clueId}:${g.letters.join(',')}`;
   autoAccepted = new Set([...autoAccepted].filter(k => groups.some(g => key(g) === k)));
   for (const g of groups) {
-    if (autoAccepted.has(key(g)) || (acceptMode === 'agreed' && g.playerIds.length < 2)) continue;
+    // The host suggests when unsure, so their suggestions wait for someone to agree, even with trusted friends.
+    const needsTwo = acceptMode === 'agreed' || g.playerIds.includes(HOST_ID);
+    if (autoAccepted.has(key(g)) || (needsTwo && g.playerIds.length < 2)) continue;
     if (acceptGroup(g.clueId, g.letters)) autoAccepted.add(key(g));
   }
 }
 
-/** Records the letters that changed on the site for the co-op replay, crediting whoever they were typed for. */
-function recordChanges(before: string[], after: string[]) {
-  const now = Date.now();
-  const byWho = new Map<string, [number, string][]>();
-  after.forEach((letter, cell) => {
-    if (letter === before[cell]) return;
-    const pending = typing.get(cell);
-    const by = pending && pending.letter === letter ? pending.by : HOST_ID;
-    typing.delete(cell);
-    byWho.set(by, [...(byWho.get(by) ?? []), [cell, letter]]);
-  });
-  if (!byWho.size) return;
-  history.startedAt ??= now;
-  for (const [by, cells] of byWho) history.events.push({ at: now - history.startedAt, board: 'shared', by, cells });
+/** Types the grid into the crossword on the site, with its tab brought forward (sites can ignore a hidden tab). */
+async function fillSite() {
+  const port = sitePort();
+  if (!port || !page || fillIn() !== 'ready') return;
+  const site = page.letters;
+  const cells = grid.map((letter, cell) => ({ cell, letter })).filter(({ cell, letter }) => !page!.puzzle.blocks[cell] && site[cell] !== letter);
+  const tab = port.sender?.tab;
+  if (tab?.id !== undefined) {
+    await browser.tabs.update(tab.id, { active: true });
+    if (tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
+  }
+  port.postMessage({ type: 'apply', cells } satisfies ToAdapter);
 }
 
 function randomRoomId() {
@@ -219,6 +308,8 @@ function startSession() {
   s.peer.on('connection', conn => {
     if (!live()) return conn.close();
     s.conns.set(conn, null);
+    // The room straight away, so the join screen can show who's already here.
+    conn.on('open', () => live() && conn.send({ t: 'state', state: roomState() } satisfies HostMessage));
     conn.on('data', data => live() && onGuestMessage(s, conn, data));
     conn.on('close', () => {
       if (!live()) return;
@@ -295,20 +386,24 @@ function onCommand(msg: Command) {
       acceptMode = msg.acceptMode;
       browser.storage.local.set({ acceptMode });
       return update();
+    case 'switch-puzzle': {
+      const other = otherPage();
+      if (!other || race.running) return;
+      usePuzzle(other);
+      return update();
+    }
     case 'accept':
       acceptGroup(msg.clueId, msg.letters);
       return update();
-    case 'undo': {
-      if (!lastAccept || !page) return;
-      const letters = page.letters;
-      // Only put back squares that still hold what the accept typed, so later changes aren't lost.
-      applyLetters(
-        lastAccept.changes.filter(c => letters[c.cell] === c.after).map(c => ({ cell: c.cell, letter: c.before })),
+    case 'undo':
+      if (!lastAccept) return;
+      // Only put back squares that still hold what the accept put in, so later changes aren't lost.
+      setLetters(
+        lastAccept.changes.filter(c => grid[c.cell] === c.after).map(c => ({ cell: c.cell, letter: c.before })),
         HOST_ID,
       );
       lastAccept = null;
       return update();
-    }
     case 'reject': {
       const inGroup = (x: Suggestion) => x.clueId === msg.clueId && sameLetters(x.letters, msg.letters);
       for (const x of suggestions.filter(inGroup)) sendToGuests({ t: 'rejected', clueId: msg.clueId }, x.playerId);
@@ -316,8 +411,32 @@ function onCommand(msg: Command) {
       return update();
     }
     case 'type':
-      // The host typing on the full-page view: straight onto the crossword.
-      if (mode === 'coop' && page) applyLetters(msg.cells.filter(c => c.cell >= 0 && c.cell < page!.letters.length), HOST_ID);
+      if (mode !== 'coop') return;
+      fromSite = false;
+      setLetters(
+        msg.cells.map(c => ({ cell: c.cell, letter: normalizeLetter(c.letter) })),
+        HOST_ID,
+      );
+      return update();
+    case 'select':
+      hostClueId = msg.clueId;
+      return update();
+    case 'suggest':
+      if (mode !== 'coop' || !page?.puzzle.clues.some(c => c.id === msg.clueId)) return;
+      suggestions = upsertSuggestion(suggestions, { playerId: HOST_ID, clueId: msg.clueId, letters: msg.letters.map(normalizeLetter) });
+      return update();
+    case 'check': {
+      const s = solutions();
+      if (mode !== 'coop' || !s) return;
+      const status = squareStatus(s, grid);
+      const found = msg.cells.filter(cell => status[cell] === 'wrong');
+      for (const cell of msg.cells) wrong.delete(cell);
+      for (const cell of found) wrong.add(cell);
+      check = { label: msg.label, wrong: found.length, at: now };
+      return update();
+    }
+    case 'fill-site':
+      fillSite();
       return;
     case 'race-settings': {
       if (race.running) return;
@@ -326,10 +445,10 @@ function onCommand(msg: Command) {
       return update();
     }
     case 'start-race': {
-      // A race uses the crossword open on the site, and needs its answers and someone to race.
-      const solutions = page && answers?.puzzleKey === puzzleKey(page.puzzle) ? answers.solutions : null;
-      if (mode !== 'race' || race.running || !session || !page || !solutions || !onlineIds().length) return;
-      race.start(page.puzzle, solutions, onlineIds(), now);
+      // A race uses the crossword being played, and needs its answers and someone to race.
+      const s = solutions();
+      if (mode !== 'race' || race.running || !session || !page || !s || !onlineIds().length) return;
+      race.start(page.puzzle, s, onlineIds(), now);
       return update();
     }
     case 'end-race':
@@ -346,30 +465,19 @@ browser.runtime.onConnect.addListener(port => {
   if (port.name === 'adapter') {
     port.onMessage.addListener(m => {
       const msg = m as FromAdapter;
-      // Whichever crossword page reported most recently is the one we use.
-      adapter = port;
-      if (msg.type === 'answers') answers = { puzzleKey: msg.puzzleKey, solutions: msg.solutions };
+      if (msg.type === 'answers') answers.set(msg.puzzleKey, msg.solutions);
       if (msg.type === 'page') {
         const { type, ...snapshot } = msg;
-        if (page && puzzleKey(page.puzzle) === puzzleKey(snapshot.puzzle)) recordChanges(page.letters, snapshot.letters);
-        else {
-          if (page) {
-            // A different puzzle: start afresh.
-            suggestions = [];
-            lastAccept = null;
-            history = { startedAt: null, events: [] };
-            typing.clear();
-          }
-          // Letters already on the grid open the replay.
-          recordChanges(snapshot.letters.map(() => ''), snapshot.letters);
-        }
-        page = snapshot;
+        pages.delete(port); // so the most recent report comes last
+        pages.set(port, snapshot);
+        onPage(snapshot);
       }
       update();
     });
-    // Keep the last page state if the tab goes away (e.g. the host reloads), so guests still see the grid.
+    // The crossword being played stays as it was if its tab goes away (e.g. the host reloads it).
     port.onDisconnect.addListener(() => {
-      if (adapter === port) adapter = null;
+      pages.delete(port);
+      update();
     });
   }
   const views = port.name === 'sidebar' ? sidebars : port.name === 'full' ? fullViews : null;

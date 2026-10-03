@@ -25,7 +25,7 @@ function App() {
   const racing = sidebar.racePhase === 'countdown' || sidebar.racePhase === 'racing';
 
   return (
-    <main>
+    <main class={mode === 'coop' ? 'fill' : ''}>
       <header class="top">
         <h1>Group Crossword</h1>
         <div class="modes" title={racing ? 'Finish or end the race first' : undefined}>

@@ -1,7 +1,8 @@
-// An anagram wheel: type the letters to rearrange, click them from the circle into the answer's squares, then put the
-// result in the grid. The parent decides where the panel sits. Styles are in anagram.css.
+// An anagram wheel: type the letters to rearrange, click them from the circle into the answer's squares (click an
+// empty square first to choose where the next one goes), then put the result in the grid. The parent decides where
+// the panel sits. Styles are in anagram.css.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { circlePositions, keepPlaced, lettersOf, shuffle } from './anagram';
+import { circlePositions, keepPlaced, lettersOf, shuffle, withoutKnown } from './anagram';
 
 export function AnagramPad({
   slots,
@@ -22,10 +23,14 @@ export function AnagramPad({
   const [pool, setPool] = useState<string[]>([]);
   /** Letters put into the answer: one per square, '' where none. */
   const [placed, setPlaced] = useState(() => slots.map(() => ''));
+  /** The square picked for the next letter; -1 for none. */
+  const [chosen, setChosen] = useState(-1);
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => input.current?.focus(), []);
 
-  const empty = slots.findIndex((known, i) => !known && !placed[i]);
+  // The next letter goes in the chosen square while it's empty, else in the first empty one.
+  const target =
+    chosen >= 0 && !slots[chosen] && !placed[chosen] ? chosen : slots.findIndex((known, i) => !known && !placed[i]);
   const anyPlaced = placed.some(Boolean);
   const positions = circlePositions(pool.length);
 
@@ -36,15 +41,18 @@ export function AnagramPad({
   };
 
   function edit(value: string) {
-    const kept = keepPlaced(lettersOf(value), placed);
+    const kept = keepPlaced(withoutKnown(lettersOf(value), slots), placed);
     setText(value);
     setPool(kept.pool);
     setPlaced(kept.placed);
   }
 
   function place(i: number) {
-    setPlaced(placed.map((letter, s) => (s === empty ? pool[i] : letter)));
+    const next = placed.map((letter, s) => (s === target ? pool[i] : letter));
+    setPlaced(next);
     setPool(pool.filter((_, j) => j !== i));
+    // Then on to the next empty square after it; with none, back to the first.
+    setChosen(slots.findIndex((known, s) => s > target && !known && !next[s]));
   }
 
   function unplace(s: number) {
@@ -55,6 +63,7 @@ export function AnagramPad({
   function clear() {
     setPool([...pool, ...placed.filter(Boolean)]);
     setPlaced(placed.map(() => ''));
+    setChosen(-1);
   }
 
   return (
@@ -94,7 +103,7 @@ export function AnagramPad({
             type="button"
             class="anagram-letter"
             style={{ left: `${positions[i].x}%`, top: `${positions[i].y}%` }}
-            disabled={empty < 0}
+            disabled={target < 0}
             onClick={act(() => place(i))}
           >
             {letter}
@@ -109,8 +118,15 @@ export function AnagramPad({
               <button type="button" class="anagram-slot placed" title="Put back" onClick={act(() => unplace(s))}>
                 {placed[s]}
               </button>
+            ) : known ? (
+              <span class="anagram-slot known">{known}</span>
             ) : (
-              <span class={known ? 'anagram-slot known' : 'anagram-slot'}>{known}</span>
+              <button
+                type="button"
+                class={s === target ? 'anagram-slot target' : 'anagram-slot'}
+                title="Put the next letter here"
+                onClick={act(() => setChosen(s))}
+              />
             )}
             {breaks?.[s] === 'word' && <span class="anagram-gap" />}
             {breaks?.[s] === 'hyphen' && <span class="anagram-hyphen" />}

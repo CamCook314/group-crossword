@@ -25,6 +25,23 @@ export function circlePositions(n: number): { x: number; y: number }[] {
 }
 
 /**
+ * Takes the answer's known letters (any case, '' for an empty square) off the typed letters, one copy each, so the
+ * whole fodder can be typed. Only letters typed beyond what the empty squares need come off, so typing just the
+ * missing letters still works.
+ */
+export function withoutKnown(letters: string[], known: string[]): string[] {
+  const out = [...letters];
+  let extra = letters.length - known.filter(letter => !letter).length;
+  for (const letter of known) {
+    const i = letter ? out.indexOf(letter.toUpperCase()) : -1;
+    if (extra <= 0 || i < 0) continue;
+    out.splice(i, 1);
+    extra--;
+  }
+  return out;
+}
+
+/**
  * For when the letters change: keeps each placed letter that is still among them (blanking the rest, first slot
  * first) and returns the letters left over, in their original order.
  */

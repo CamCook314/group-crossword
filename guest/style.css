@@ -39,6 +39,11 @@ button {
   color: #fff;
   cursor: pointer;
 }
+button.secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+}
 button:disabled {
   opacity: 0.4;
   cursor: default;
@@ -89,8 +94,30 @@ input {
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
 }
 
-/* Connection banner and toast */
+/* Join form: who's already here, and the buttons when changing your name or colour */
+.already {
+  display: grid;
+  gap: 6px;
+}
+.join-buttons {
+  display: flex;
+  gap: 8px;
+}
+.join-buttons button {
+  flex: 1;
+}
+.modal .join {
+  margin: 0;
+  padding: 0;
+}
+
+/* Connection banner and toast: over the page, so they never move the puzzle */
 .banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   background: #fff3cd;
   color: #5c4500;
   padding: 8px 16px;
@@ -113,7 +140,7 @@ input {
 
 /* Footer */
 .footer {
-  margin-top: 16px;
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   gap: 8px 24px;
@@ -181,21 +208,21 @@ input {
 .penalty {
   color: #d62728;
 }
-.notice {
-  background: color-mix(in srgb, #d62728 18%, var(--surface));
-  border-radius: 6px;
-  padding: 6px 14px;
-  margin: -4px 0 12px;
-}
-.notice.soft {
-  background: var(--surface);
-  color: var(--muted);
-}
 .progress {
-  margin-top: 16px;
   display: grid;
   gap: 6px;
-  max-width: 560px;
+}
+/* Once you've finished: everyone else's grid, live */
+.live-boards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.live-boards .board {
+  --size: 170px;
+}
+.live-boards figure {
+  margin: 0;
 }
 .progress-row {
   display: grid;
@@ -255,7 +282,6 @@ input {
 .agree-strip {
   display: grid;
   gap: 4px;
-  margin: -4px 0 12px;
 }
 .agree-item {
   display: flex;

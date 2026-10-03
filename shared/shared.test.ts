@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { hexToHsv, hsvToHex, textOn } from './color';
 import { COLORS, parseGuestMessage, type Player, type Suggestion } from './protocol';
 import { buildPuzzle, clueAt, layoutEntries } from './puzzle';
-import { AGREED_COLOR, cellsToApply, clashes, cornerMarks, groupSuggestions, pruneSuggestions, upsertSuggestion } from './suggestions';
+import { AGREED_COLOR, cellsToApply, clashes, cornerMarks, draftsAfterSubmit, groupSuggestions, pruneSuggestions, upsertSuggestion } from './suggestions';
 
 // 3x3 ring:   1 . 2
 //             . # .
@@ -50,12 +50,22 @@ describe('puzzle layout', () => {
 describe('suggestions', () => {
   const s = (playerId: string, clueId: string, letters: string[]): Suggestion => ({ playerId, clueId, letters });
 
-  it('replaces a player\'s earlier suggestion for the same clue, and withdraws on all-blank', () => {
-    let list = upsertSuggestion([], s('a', '1A', ['C', 'A', 'T']));
+  it('merges a player\'s new letters for a clue into their earlier suggestion, and withdraws on all-blank', () => {
+    let list = upsertSuggestion([], s('a', '1A', ['C', '', '']));
     list = upsertSuggestion(list, s('b', '1A', ['D', 'O', 'G']));
-    list = upsertSuggestion(list, s('a', '1A', ['C', 'O', 'W']));
+    list = upsertSuggestion(list, s('a', '1A', ['', '', 'T'])); // one square at a time adds up
+    expect(list).toEqual([s('b', '1A', ['D', 'O', 'G']), s('a', '1A', ['C', '', 'T'])]);
+    list = upsertSuggestion(list, s('a', '1A', ['', 'O', 'W'])); // newer letters win
     expect(list).toEqual([s('b', '1A', ['D', 'O', 'G']), s('a', '1A', ['C', 'O', 'W'])]);
     expect(upsertSuggestion(list, s('a', '1A', ['', '', '']))).toEqual([s('b', '1A', ['D', 'O', 'G'])]);
+  });
+
+  it('keeps a shared square\'s draft while the crossing answer still has other drafts', () => {
+    // PLANK across and PETAL down share the first square. Suggesting the down answer keeps the P for the across one.
+    const drafts = { 0: 'P', 1: 'L', 2: 'A', 3: 'E', 6: 'T' };
+    expect(draftsAfterSubmit(puzzle, drafts, new Set([0, 3, 6]))).toEqual({ 0: 'P', 1: 'L', 2: 'A' });
+    // With nothing else drafted across, the P goes with the down suggestion.
+    expect(draftsAfterSubmit(puzzle, { 0: 'P', 3: 'E', 6: 'T' }, new Set([0, 3, 6]))).toEqual({});
   });
 
   it('prunes suggestions already in the grid or for unknown clues', () => {

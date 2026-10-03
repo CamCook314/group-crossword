@@ -109,13 +109,15 @@ host the answers.
 
 - **Sidebar, Race mode:** a switch between Co-op and Race, an **Open full view** button, and a one-line status.
 - **Race view** (the host's full view, a full-page extension page opened from the sidebar, in Race mode):
-  - *Lobby:* link + Copy, settings, players, answer status, **Start**.
+  - *Lobby:* link + Copy, settings, players, answer status, **Start**. With a session running, a crossword opened in
+    another tab doesn't take over: the lobby offers it ("Play it instead"), as co-op does.
   - *Racing:* one live board per racer (their letters, wrong ones marked), with % correct, % filled, time and place;
     **End race**.
   - *Results:* the standings, the solution board, the replay, every racer's final board.
   - It's the host's own page inside the extension, so it gets everything straight from the background page and needs
     no network connection of its own.
-- **Play:** opens the race page in a new window, joined as the host (own client id; join form prefilled with the
+- **Join as a racer** (in the race view's header, in the lobby and during the race; it was a small "Play" button in the
+  lobby, which the host couldn't find): opens the race page in a new window, joined as the host (own client id; join form prefilled with the
   host's name and colour). To the hub it's just another racer over WebRTC, so it needs no special code and never has
   the answers. It shows % filled like any racer.
 - **Honour system while racing:** the race view shows everyone's letters and which are right, and the crossword site
@@ -128,7 +130,8 @@ host the answers.
 - **Racing:** the same grid and clue lists as co-op (keyboard, clicking, highlighting), but typing goes straight into
   your own grid: no drafts, no suggestions, no corner letters. A timer, and the others' % filled if the host allows it.
   "Not quite" (and any penalty, with its cooldown) when a full grid is wrong.
-- **Finished:** your time and place, and how others are doing.
+- **Finished:** your time and place, and everyone else's grid, live, with wrong squares marked. You know every answer
+  by then, so it gives nothing away (it's on the honour system not to help).
 - **Results:** the standings: everyone who finished by time (penalties included), then everyone else by squares
   correct, then fewest wrong. The solution (the winner's board, or the answer grid if nobody finished); a replay of the
   race, every board side by side with a slider; then every player's final board.

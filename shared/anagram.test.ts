@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { circlePositions, keepPlaced, lettersOf, shuffle } from './anagram';
+import { circlePositions, keepPlaced, lettersOf, shuffle, withoutKnown } from './anagram';
 
 describe('lettersOf', () => {
   it('keeps only A-Z, uppercased', () => {
@@ -47,6 +47,25 @@ describe('circlePositions', () => {
         expect(v).toBeLessThan(100);
       }
     }
+  });
+});
+
+describe('withoutKnown', () => {
+  it('takes letters already in the squares off the whole fodder, ignoring case', () => {
+    expect(withoutKnown(lettersOf('TENANTS'), ['', 'e', '', '', '', 'T', ''])).toEqual(lettersOf('NANTS'));
+  });
+
+  it('takes one copy per known square', () => {
+    expect(withoutKnown(lettersOf('BANANA'), ['A', '', 'A', '', '', ''])).toEqual(lettersOf('BNNA'));
+  });
+
+  it('leaves known letters that were not typed', () => {
+    expect(withoutKnown(lettersOf('TENANTS'), ['X', '', '', '', '', '', ''])).toEqual(lettersOf('TENANTS'));
+  });
+
+  it('leaves the letters alone when they are just the missing ones', () => {
+    expect(withoutKnown(lettersOf('ENANTS'), ['T', '', '', '', '', '', ''])).toEqual(lettersOf('ENANTS'));
+    expect(withoutKnown(lettersOf('TE'), ['T', '', '', '', '', '', ''])).toEqual(lettersOf('TE'));
   });
 });
 

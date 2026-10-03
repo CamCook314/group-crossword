@@ -1,5 +1,6 @@
 // Amuse Labs' PuzzleMe player, which Courier Mail embeds in an iframe.
 import { puzzleMeSolutions } from '../../../shared/answers';
+import { spaceBeforeEnumeration } from '../../../shared/clues';
 import { buildPuzzle, type Dir } from '../../../shared/puzzle';
 import { decodeRawc } from '../../../shared/rawc';
 import { runAdapter, type SiteAdapter } from './run';
@@ -48,19 +49,10 @@ const adapter: SiteAdapter = {
     const letters = g.cells.map(el => el.querySelector('.letter-in-box')?.textContent?.trim().toUpperCase() ?? '');
     const clues = clueItems()
       .filter(c => c.num > 0)
-      .map(({ div, num, dir }) => ({ num, dir, text: div.querySelector('.clue')?.textContent?.trim() ?? '' }));
+      .map(({ div, num, dir }) => ({ num, dir, text: spaceBeforeEnumeration(div.querySelector('.clue')?.textContent?.trim() ?? '') }));
     const active = clueItems().find(c => c.div.classList.contains('hilited-clue'));
     return { puzzle: buildPuzzle(document.title, g.rows, g.cols, blocks, clues), letters, clueId: active ? active.num + active.dir : null };
   },
-
-  cells: () => grid()?.cells ?? [],
-
-  clueElement(clueId) {
-    return clueItems().find(c => c.num + c.dir === clueId)?.div ?? null;
-  },
-
-  // Clue numbers sit right at the left edge.
-  badgeSide: 'right',
 
   setLetter(cell, letter) {
     const box = grid()?.cells[cell];

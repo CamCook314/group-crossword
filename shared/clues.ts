@@ -19,6 +19,9 @@ export function parseEnumeration(text: string): Enumeration | null {
   return { lengths, breaks };
 }
 
+/** Puts back the space before the enumeration that a site's markup can drop: "Lick it(3)" -> "Lick it (3)". */
+export const spaceBeforeEnumeration = (text: string) => text.replace(/(\S)(\(\d+(?:\s*[,\-\s.']\s*\d+)*\)\s*\.?\s*)$/, '$1 $2');
+
 const toDir = (word?: string): Dir | undefined => (!word ? undefined : /^a/i.test(word) ? 'A' : 'D');
 
 /** "See 13" or "See 13 Down": this entry is a later part of clue 13's answer. */

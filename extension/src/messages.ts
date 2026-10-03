@@ -20,7 +20,8 @@ export type FromAdapter =
   | { type: 'answers'; puzzleKey: string; solutions: Solutions | null };
 
 export type ToAdapter =
-  | { type: 'overlay'; state: RoomState | null }
+  /** A note to show on the crossword's page, or null for none. */
+  | { type: 'notice'; text: string | null }
   /** Letters to put into the site; '' clears a square. */
   | { type: 'apply'; cells: { cell: number; letter: string }[] };
 
@@ -31,13 +32,18 @@ export interface HostProfile {
 
 export type Mode = 'coop' | 'race';
 
-/** The crossword open on the site. */
+/** A crossword open on a site. */
 export type PagePuzzle = { title: string; rows: number; cols: number } | null;
 
 export interface SidebarStatus {
   mode: Mode;
   racePhase: RacePhase;
+  /** The crossword being played. */
   pagePuzzle: PagePuzzle;
+  /** A different crossword open in another tab, which the host can switch to. */
+  otherPuzzle: PagePuzzle;
+  /** Co-op, once the grid is solved (or full, without answers): whether it can be filled in on the site. */
+  fillIn: 'ready' | 'no-tab' | 'done' | null;
   state: RoomState;
   host: HostProfile;
   session: { link: string; status: string } | null;
@@ -55,14 +61,18 @@ export type FromSidebar =
   | { type: 'undo' }
   | { type: 'host'; host: HostProfile }
   | { type: 'mode'; mode: Mode }
-  | { type: 'accept-mode'; acceptMode: AcceptMode };
+  | { type: 'accept-mode'; acceptMode: AcceptMode }
+  /** Play the crossword open in another tab instead. */
+  | { type: 'switch-puzzle' };
 
 /** Everything the host's race view shows. */
 export interface RaceViewStatus {
   host: HostProfile;
   session: { link: string; status: string } | null;
-  /** The crossword open on the site: the one the next race will use. */
+  /** The crossword being played: the one the next race will use. */
   pagePuzzle: PagePuzzle;
+  /** A different crossword open in another tab, which the host can switch to. */
+  otherPuzzle: PagePuzzle;
   answers: SidebarStatus['answers'];
   phase: RacePhase;
   settings: RaceSettings;
@@ -93,5 +103,13 @@ export interface FullViewStatus {
 export type Command =
   | FromSidebar
   | FromRaceView
-  /** The host typing on the full-page view: straight onto the crossword. */
-  | { type: 'type'; cells: { cell: number; letter: string }[] };
+  /** The host typing on the full-page view: straight into the shared grid. */
+  | { type: 'type'; cells: { cell: number; letter: string }[] }
+  /** The clue the host has selected on the full-page view. */
+  | { type: 'select'; clueId: string | null }
+  /** The host suggesting rather than writing in, like a guest (all blank withdraws it). */
+  | { type: 'suggest'; clueId: string; letters: string[] }
+  /** Check these squares against the answers; `label` says what was checked ("1A", "the grid"). */
+  | { type: 'check'; cells: number[]; label: string }
+  /** Type the solved grid into the crossword on the site. */
+  | { type: 'fill-site' };

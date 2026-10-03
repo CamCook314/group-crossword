@@ -1,10 +1,26 @@
 import type { Player, Suggestion } from './protocol';
 import type { Puzzle } from './puzzle';
 
-/** Adds or replaces a player's suggestion for a clue. An all-blank suggestion just withdraws it. */
+/**
+ * Adds a player's suggestion for a clue, merged into their earlier one: new letters replace old ones square by square,
+ * and blanks keep what was there. It then counts as their newest. An all-blank suggestion withdraws it.
+ */
 export function upsertSuggestion(list: Suggestion[], s: Suggestion): Suggestion[] {
-  const rest = list.filter(x => !(x.playerId === s.playerId && x.clueId === s.clueId));
-  return s.letters.some(Boolean) ? [...rest, s] : rest;
+  const old = list.find(x => x.playerId === s.playerId && x.clueId === s.clueId);
+  const rest = list.filter(x => x !== old);
+  if (!s.letters.some(Boolean)) return rest;
+  const letters = old?.letters.length === s.letters.length ? s.letters.map((l, i) => l || old.letters[i]) : s.letters;
+  return [...rest, { ...s, letters }];
+}
+
+/**
+ * The drafts to keep once the squares in `submitted` have been suggested: everything outside them, plus a shared square
+ * whose crossing answer still has other drafted letters (its own suggestion will need that letter too).
+ */
+export function draftsAfterSubmit(puzzle: Puzzle, drafts: Record<number, string>, submitted: Set<number>): Record<number, string> {
+  const crossingHasDrafts = (cell: number) =>
+    puzzle.clues.some(c => c.cells.includes(cell) && !c.cells.every(x => submitted.has(x)) && c.cells.some(x => !submitted.has(x) && drafts[x]));
+  return Object.fromEntries(Object.entries(drafts).filter(([cell]) => !submitted.has(+cell) || crossingHasDrafts(+cell)));
 }
 
 /** Drops suggestions for clues that don't exist, and ones whose letters are all already in the grid. */

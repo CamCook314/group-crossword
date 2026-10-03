@@ -1,5 +1,6 @@
 /* The solving view: clue bar, grid and clue lists (shared/Crossword.tsx), used by the guest page and the host's full view.
-   Pages define the colour tokens (--cell, --block, --fg, --muted, --surface, --bg, --me) and the grid width (--size). */
+   Pages define the colour tokens (--cell, --block, --fg, --muted, --surface, --bg, --line, --me). The grid's width
+   (--size) comes from its box, or is set directly (small boards). */
 .grid {
   width: var(--size);
   display: grid;
@@ -50,18 +51,16 @@
 }
 
 /* Clue lists */
-/* Clue lists */
 .clues {
   flex: 1;
-  min-width: 300px;
+  min-height: 0;
   display: flex;
   gap: 16px;
-  max-height: var(--size);
 }
 .clue-list {
   flex: 1;
+  min-width: 0;
   overflow-y: auto;
-  max-height: var(--size);
 }
 .clue-list h3 {
   margin: 0 0 4px;
@@ -71,6 +70,7 @@
   color: var(--muted);
   position: sticky;
   top: 0;
+  z-index: 1;
   background: var(--bg);
   padding: 2px 0 4px;
 }
@@ -80,6 +80,7 @@
   padding: 0;
 }
 .clue-list li {
+  position: relative;
   display: flex;
   gap: 8px;
   align-items: flex-start;
@@ -101,17 +102,37 @@
 .clue-list .t {
   flex: 1;
 }
+/* Filled-in clues are greyed out */
+.clue-list li.done .n,
+.clue-list li.done .t {
+  color: var(--muted);
+}
+/* Player badges sit in a space kept for them, so they never move the clue's text */
+.clue-list ol.with-badges li {
+  padding-right: 46px;
+}
+.badges {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 18px);
+  gap: 2px;
+  direction: rtl;
+}
 .badge {
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   color: #fff;
-  font: 700 11px/20px system-ui, sans-serif;
+  font: 700 10px/18px system-ui, sans-serif;
   text-align: center;
+  direction: ltr;
 }
 
-/* Small read-only boards (MiniBoard): race results and the host's race view */
+/* Small read-only boards (MiniBoard): race results, live boards */
 .board {
   --size: 220px;
 }
@@ -126,33 +147,33 @@
   background: color-mix(in srgb, #d62728 38%, var(--cell));
 }
 
-/* Word breaks from the enumeration: a thick line between words, a short dash for a hyphen */
+/* Word breaks from the enumeration: a bar between words, a short dash for a hyphen */
 .cell.brk-r {
-  box-shadow: inset -0.1em 0 var(--block);
+  box-shadow: inset -0.065em 0 var(--fg);
 }
 .cell.brk-b {
-  box-shadow: inset 0 -0.1em var(--block);
+  box-shadow: inset 0 -0.065em var(--fg);
 }
 .cell.brk-r.brk-b {
-  box-shadow: inset -0.1em 0 var(--block), inset 0 -0.1em var(--block);
+  box-shadow: inset -0.065em 0 var(--fg), inset 0 -0.065em var(--fg);
 }
 .cell.hyp-r::after,
 .cell.hyp-b::after {
   content: '';
   position: absolute;
   z-index: 1;
-  background: var(--block);
+  background: var(--fg);
 }
 .cell.hyp-r::after {
   right: -0.14em;
-  top: calc(50% - 0.04em);
+  top: calc(50% - 0.03em);
   width: 0.28em;
-  height: 0.08em;
+  height: 0.06em;
 }
 .cell.hyp-b::after {
   bottom: -0.14em;
-  left: calc(50% - 0.04em);
-  width: 0.08em;
+  left: calc(50% - 0.03em);
+  width: 0.06em;
   height: 0.28em;
 }
 
@@ -167,32 +188,86 @@
   box-shadow: inset 3px 0 color-mix(in srgb, var(--me) 45%, transparent);
 }
 
-/* Solving view layout, drafts and suggestion corners */
+/* Solving view layout: the clue bar on top, then the board and the clue lists filling the rest of the window */
 .solver {
-  --size: min(560px, calc(100vw - 32px), calc(100vh - 150px));
-  max-width: 1200px;
-  margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 16px;
 }
 .clue-bar {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   background: color-mix(in srgb, var(--me) 18%, var(--surface));
   border-radius: 6px;
   padding: 10px 14px;
-  margin-bottom: 12px;
   min-height: 48px;
 }
 .clue-bar-text {
   flex: 1;
+  min-width: 200px;
   font-size: 17px;
 }
 .main {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  flex-wrap: wrap;
   gap: 20px;
-  align-items: flex-start;
+  container-type: size;
+}
+/* As big as the height allows, leaving room for the clue lists */
+.board-area {
+  --board: max(280px, min(calc(100cqh - 44px), calc(100cqw - 440px)));
+  flex: none;
+  width: var(--board);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.grid-box {
+  flex: 1;
+  min-height: 0;
+  max-height: var(--board);
+  overflow: auto;
+  container-type: size;
+  --size: calc(min(100cqw, 100cqh) * var(--zoom, 1));
+}
+.board-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+.board-foot button {
+  padding: 2px 10px;
+}
+.zoom {
+  display: flex;
+  gap: 2px;
+}
+.zoom button {
+  width: 30px;
+  padding: 2px 0;
+  font-weight: 700;
+}
+.side {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.side > :not(.clues) {
+  flex: none;
+  max-height: 75%;
+  overflow: auto;
 }
 .letter.draft {
   color: var(--me);
@@ -223,14 +298,103 @@
 .help {
   margin: 0;
   font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 800px) {
+  .solver {
+    height: auto;
+  }
+  .main {
+    flex-direction: column;
+    container-type: normal;
+  }
+  .board-area {
+    width: 100%;
+    height: calc(100vw + 40px);
+  }
 }
 
-/* A tool (the anagram pad) under the clue bar */
+/* Messages float over the page, so they never move the puzzle */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+  pointer-events: none;
+}
+.toast-item {
+  pointer-events: auto;
+  background: var(--surface);
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  max-width: calc(100vw - 32px);
+}
+.toast-item.notice,
+.toast-item.wrong {
+  background: color-mix(in srgb, #d62728 22%, var(--surface));
+}
+.toast-item.solved {
+  background: color-mix(in srgb, #2ca02c 25%, var(--surface));
+  font-weight: 600;
+}
+.toast-item button {
+  margin-left: 10px;
+  padding: 2px 10px;
+}
+
+/* Tools: the anagram pad and definitions beside the clues, notes under the grid */
 .tool-panel {
-  margin: -4px 0 12px;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 8px;
+}
+.scratchpad {
+  flex: none;
+  height: 110px;
+  resize: vertical;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.define-form {
+  display: flex;
+  gap: 6px;
+}
+.define-input {
+  flex: 1;
+  min-width: 0;
+}
+.define-results ol {
+  margin: 8px 0;
+  padding-left: 22px;
+}
+.define-results li {
+  margin: 3px 0;
+}
+.define-results i {
+  color: var(--muted);
+}
+.synonyms {
+  margin: 6px 0 0;
+}
+.write-mode {
+  display: flex;
+}
+button.picked {
+  background: color-mix(in srgb, var(--me) 30%, transparent);
 }
 
-/* A pop-up over the page (the replay) */
+/* A pop-up over the page (the replay, changing your name) */
 .modal-backdrop {
   position: fixed;
   inset: 0;

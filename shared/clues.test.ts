@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { continuationOf, parseEnumeration, referencesIn } from './clues';
+import { continuationOf, parseEnumeration, referencesIn, spaceBeforeEnumeration } from './clues';
 import { answerOf, buildPuzzle, slotBreaks, wordBreaks } from './puzzle';
 
 describe('reading clue texts', () => {
+  it('puts back a missing space before the enumeration', () => {
+    expect(spaceBeforeEnumeration('Lick! Eat messily as if feline(3)')).toBe('Lick! Eat messily as if feline (3)');
+    expect(spaceBeforeEnumeration('Gold inside(4,2)')).toBe('Gold inside (4,2)');
+    expect(spaceBeforeEnumeration('Already spaced (5)')).toBe('Already spaced (5)');
+    expect(spaceBeforeEnumeration('No enumeration')).toBe('No enumeration');
+  });
+
   it('reads word lengths and breaks from the enumeration', () => {
     expect(parseEnumeration('Dude laughs following "Up" opening scene (8)')).toEqual({ lengths: [8], breaks: [] });
     expect(parseEnumeration('Shifty demon hunter (2,3,4)')).toEqual({ lengths: [2, 3, 4], breaks: ['word', 'word'] });

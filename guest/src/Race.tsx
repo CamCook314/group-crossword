@@ -1,11 +1,13 @@
 // A racer's view of a race: the lobby, the countdown, their own private grid, and the results.
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { AnagramPad } from '../../shared/AnagramPad';
-import { answerLabel, ClueLists, cursorClass, Grid, MiniBoard, useCursor } from '../../shared/Crossword';
-import type { GuestMessage, Player, RaceState, RoomState } from '../../shared/protocol';
+import { answerLabel, BoardArea, ClueLists, cursorClass, Grid, MiniBoard, useCursor } from '../../shared/Crossword';
+import { Define } from '../../shared/Define';
+import type { GuestMessage, Player, RaceState, RacerBoard, RoomState } from '../../shared/protocol';
 import { puzzleKey, slotBreaks, wordBreaks, type Puzzle } from '../../shared/puzzle';
 import { formatTime, ordinal } from '../../shared/race';
 import { ReplayPlayer } from '../../shared/ReplayPlayer';
+import { Scratchpad } from '../../shared/Scratchpad';
 import { Standings } from '../../shared/Standings';
 import { useNow } from '../../shared/useNow';
 
@@ -23,6 +25,8 @@ interface Props {
   notice: NotQuite | null;
   /** Your grid so far, from the host after you rejoin. */
   restore: string[] | null;
+  /** Everyone's grid, live, once you've finished. */
+  boards: RacerBoard[] | null;
 }
 
 const percent = (n: number, total: number) => (total ? Math.round((100 * n) / total) : 0);
@@ -54,7 +58,7 @@ function Lobby({ state, race }: { state: RoomState; race: RaceState }) {
   );
 }
 
-function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { puzzle: Puzzle; race: RaceState }) {
+function Racing({ state, me, send, notice, restore, boards, puzzle, race }: Props & { puzzle: Puzzle; race: RaceState }) {
   const [letters, setLetters] = useState<string[]>(() => Array(puzzle.blocks.length).fill(''));
   const mine = race.racers.find(r => r.id === me);
   const finished = mine?.timeMs != null;
@@ -63,7 +67,8 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
   const goAt = useMemo(() => Date.now() + (counting ? race.clockMs : -race.clockMs), [race]);
   const breaks = useMemo(() => wordBreaks(puzzle), [puzzle]);
   const now = useNow(true);
-  const [anagram, setAnagram] = useState(false);
+  const [tool, setTool] = useState<'anagram' | 'define' | null>(null);
+  const [notes, setNotes] = useState(false);
 
   useEffect(() => {
     if (restore && restore.length === puzzle.blocks.length) setLetters(restore);
@@ -103,10 +108,13 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
       <div class="clue-bar">
         <div class="clue-bar-text">{cursor.clue && <><b>{answerLabel(cursor.answer)}</b> {cursor.answer[0].text}</>}</div>
         {!finished && (
-          <button class="secondary" onClick={() => setAnagram(!anagram)}>
+          <button class="secondary" onClick={() => setTool(tool === 'anagram' ? null : 'anagram')}>
             Anagram
           </button>
         )}
+        <button class="secondary" onClick={() => setTool(tool === 'define' ? null : 'define')}>
+          Define
+        </button>
         <div class="race-clock">
           {finished ? (
             <span class="finished">
@@ -118,57 +126,91 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
           {mine && mine.penaltyMs > 0 && !finished && <span class="penalty"> +{formatTime(mine.penaltyMs)}</span>}
         </div>
       </div>
-      {showNotice && (
-        <div class="notice">
-          Not quite — keep going{notice.penaltyMs > 0 && <b> · +{formatTime(notice.penaltyMs)} penalty</b>}
-        </div>
-      )}
-      {!finished && freeFixesMs > 0 && <div class="notice soft">Free fixes for {formatTime(freeFixesMs + 999)}</div>}
-      {anagram && !finished && cursor.clue && (
-        <div class="tool-panel">
-          <AnagramPad
-            key={answerLabel(cursor.answer)}
-            slots={cursor.answer.flatMap(part => part.cells).map(c => letters[c])}
-            breaks={slotBreaks(cursor.answer)}
-            onUse={placed => {
-              const cells = cursor.answer.flatMap(part => part.cells);
-              placed.forEach((letter, i) => letter && setLetter(cells[i], letter));
-              setAnagram(false);
-            }}
-            onClose={() => setAnagram(false)}
+      <div class="main">
+        <BoardArea
+          tools={
+            <button class={notes ? 'secondary picked' : 'secondary'} onClick={() => setNotes(!notes)}>
+              Notes
+            </button>
+          }
+          below={notes && <Scratchpad storageKey={`notes:${puzzleKey(puzzle)}`} />}
+        >
+          <Grid
+            puzzle={puzzle}
+            cellClass={cell => cursorClass(cursor, cell)}
+            onCellDown={cursor.selectCell}
+            breaks={breaks}
+            renderCell={cell => (
+              <>
+                <span class="letter">{letters[cell]}</span>
+                <span class="top-left">{puzzle.numbers[cell] && <span class="num">{puzzle.numbers[cell]}</span>}</span>
+              </>
+            )}
+          />
+        </BoardArea>
+
+        <div class="side">
+          <div class="progress">
+            <ProgressRow player={state.players.find(p => p.id === me)} filled={filled} total={total} label="You" />
+            {race.racers
+              .filter(r => r.id !== me && r.filled !== null)
+              .map(r => (
+                <ProgressRow player={state.players.find(p => p.id === r.id)} filled={r.filled!} total={r.total} place={r.place} />
+              ))}
+          </div>
+          {finished && boards && (
+            <div class="live-boards">
+              {boards
+                .filter(b => b.id !== me)
+                .map(b => (
+                  <figure>
+                    <MiniBoard puzzle={puzzle} letters={b.letters} status={b.status} />
+                    <figcaption>
+                      <span class="dot" style={{ background: state.players.find(p => p.id === b.id)?.color }} />{' '}
+                      {state.players.find(p => p.id === b.id)?.name ?? 'Someone'}
+                    </figcaption>
+                  </figure>
+                ))}
+            </div>
+          )}
+          {tool === 'anagram' && !finished && cursor.clue && (
+            <div class="tool-panel">
+              <AnagramPad
+                key={answerLabel(cursor.answer)}
+                slots={cursor.answer.flatMap(part => part.cells).map(c => letters[c])}
+                breaks={slotBreaks(cursor.answer)}
+                onUse={placed => {
+                  const cells = cursor.answer.flatMap(part => part.cells);
+                  placed.forEach((letter, i) => letter && setLetter(cells[i], letter));
+                  setTool(null);
+                }}
+                onClose={() => setTool(null)}
+              />
+            </div>
+          )}
+          {tool === 'define' && (
+            <div class="tool-panel">
+              <Define onClose={() => setTool(null)} />
+            </div>
+          )}
+          <ClueLists
+            puzzle={puzzle}
+            current={cursor.answer.map(c => c.id)}
+            crossing={cursor.crossing?.id}
+            refs={cursor.refs}
+            onSelect={cursor.selectClue}
+            done={c => c.cells.every(cell => letters[cell])}
           />
         </div>
-      )}
-
-      <div class="main">
-        <Grid
-          puzzle={puzzle}
-          cellClass={cell => cursorClass(cursor, cell)}
-          onCellDown={cursor.selectCell}
-          breaks={breaks}
-          renderCell={cell => (
-            <>
-              <span class="letter">{letters[cell]}</span>
-              <span class="top-left">{puzzle.numbers[cell] && <span class="num">{puzzle.numbers[cell]}</span>}</span>
-            </>
-          )}
-        />
-        <ClueLists
-          puzzle={puzzle}
-          current={cursor.answer.map(c => c.id)}
-          crossing={cursor.crossing?.id}
-          refs={cursor.refs}
-          onSelect={cursor.selectClue}
-        />
       </div>
 
-      <div class="progress">
-        <ProgressRow player={state.players.find(p => p.id === me)} filled={filled} total={total} label="You" />
-        {race.racers
-          .filter(r => r.id !== me && r.filled !== null)
-          .map(r => (
-            <ProgressRow player={state.players.find(p => p.id === r.id)} filled={r.filled!} total={r.total} place={r.place} />
-          ))}
+      <div class="toasts">
+        {showNotice && (
+          <div class="toast-item notice">
+            Not quite — keep going{notice.penaltyMs > 0 && <b> · +{formatTime(notice.penaltyMs)} penalty</b>}
+          </div>
+        )}
+        {!finished && freeFixesMs > 0 && <div class="toast-item">Free fixes for {formatTime(freeFixesMs + 999)}</div>}
       </div>
     </div>
   );

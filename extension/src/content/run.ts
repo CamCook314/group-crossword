@@ -1,19 +1,13 @@
-// Shared plumbing for the per-site content scripts: watches the page, reports it to the
-// background page, reads the answers, draws the overlay, and types accepted answers.
+// Shared plumbing for the per-site content scripts: watches the page, reports it to the background page, reads the
+// answers, shows the extension's notice, and fills in the grid.
 import { solutionsFit, type Solutions } from '../../../shared/answers';
 import { puzzleKey } from '../../../shared/puzzle';
 import type { FromAdapter, PageSnapshot, ToAdapter } from '../messages';
-import { Overlay } from './overlay';
+import { Notice } from './notice';
 
 export interface SiteAdapter {
   /** What the page shows right now, or null if there's no crossword on it. */
   read(): PageSnapshot | null;
-  /** The grid's cell elements, row-major (same indexing as the puzzle). */
-  cells(): Element[];
-  /** The element for a clue in the site's clue list. */
-  clueElement(clueId: string): Element | null;
-  /** Which end of a clue has room for player badges without covering the clue text. */
-  badgeSide: 'left' | 'right';
   /** Selects a cell on the site and types a letter into it, or clears it if letter is ''. */
   setLetter(cell: number, letter: string): void;
   /** The puzzle's answers from the data the site embeds, or null if they aren't there. */
@@ -21,7 +15,7 @@ export interface SiteAdapter {
 }
 
 export function runAdapter(adapter: SiteAdapter) {
-  let overlay: Overlay | null = null; // created once a crossword shows up
+  let notice: Notice | null = null; // created once a crossword shows up
   let port: browser.runtime.Port | null = null;
   let lastSent = '';
   let answersFor = ''; // puzzleKey of the puzzle we last read answers for
@@ -48,17 +42,17 @@ export function runAdapter(adapter: SiteAdapter) {
   }
 
   function connect() {
-    overlay ??= new Overlay(adapter);
+    notice ??= new Notice();
     const p = browser.runtime.connect({ name: 'adapter' });
     p.onMessage.addListener(m => {
       const msg = m as ToAdapter;
-      if (msg.type === 'overlay') overlay?.setState(msg.state);
+      if (msg.type === 'notice') notice?.show(msg.text);
       if (msg.type === 'apply') typing = typing.then(() => applyLetters(msg.cells));
     });
     p.onDisconnect.addListener(() => {
       port = null;
       answersFor = ''; // a new connection needs them again
-      overlay?.setState(null);
+      notice?.show(null);
     });
     return p;
   }
@@ -79,7 +73,6 @@ export function runAdapter(adapter: SiteAdapter) {
 
   let queued = false;
   new MutationObserver(() => {
-    overlay?.redraw();
     if (queued) return;
     queued = true;
     setTimeout(() => {

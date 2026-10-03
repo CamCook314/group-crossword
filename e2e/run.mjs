@@ -1,13 +1,13 @@
-// End-to-end check in real Firefox: the extension on live crossword sites as the host,
-// plus a guest page in a second Firefox, connected over WebRTC through the public PeerJS server.
+// End-to-end check of co-op in real Firefox: the extension on live crossword sites as the host, plus two guests in
+// other Firefoxes, connected over WebRTC through the public PeerJS server.
 //
 //   npm run build && npm run e2e              both sites
 //   npm run e2e -- puzzleme                   just one (crosshare | puzzleme)
 //
-// Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the overlay and guest view.
+// Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the guest view, the sidebar and the full view.
 import { writeFileSync } from 'node:fs';
 import { By, Key } from 'selenium-webdriver';
-import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, SITES, startGuestServer, step, switchToNewWindow, until } from './helpers.mjs';
+import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, readSite, SITES, startGuestServer, step, switchToNewWindow, until } from './helpers.mjs';
 
 const sites = chosenSites();
 const shot = async (driver, file) => process.env.SHOTS && writeFileSync(`e2e/.artifacts/${file}.png`, await driver.takeScreenshot(), 'base64');
@@ -40,23 +40,40 @@ try {
     await until(`${name} waiting for a puzzle`, async () => (await guest.findElement(By.css('body')).getText()).includes('Waiting for the host'), 30000);
   }
   await join(sam, 'Sam');
+  // Ana sees who's already here before she joins.
+  await ana.get(guestUrl(roomId));
+  await until("Sam on Ana's join screen", async () => (await ana.findElement(By.css('.join .already')).getText()).includes('Sam'), 30000);
   await join(ana, 'Ana', ANA_COLOR);
   const sidebar = async () => host.switchTo().window(sidebarWindow);
   await sidebar();
   const anaDot = await until('Ana in the players list', () => host.findElement(By.xpath("//ul[@class='players']/li[contains(., 'Ana')]/span[@class='dot']")));
   const anaRgb = await anaDot.getCssValue('background-color');
   if (anaRgb !== 'rgb(18, 171, 52)') throw new Error(`Ana's colour is ${anaRgb}`);
-  step(`session ${roomId} is live; Sam and Ana joined (Ana picked ${ANA_COLOR} on the colour wheel)`);
+  step(`session ${roomId} is live; Ana saw Sam on the join screen, then joined (with ${ANA_COLOR} from the colour wheel)`);
 
+  // A guest's letter in a square: the shared grid's, not a draft.
   const letter = (guest, cell) => guest.findElement(By.css(`.cell[data-cell="${cell}"] .letter`)).getText();
   const marks = async guest => (await guest.findElements(By.css('.mark'))).length;
   const both = async check => (await check(sam)) && (await check(ana));
+  const label = async driver => driver.findElement(By.css('.clue-bar-text b')).getText();
+  /** Clicks a square until it's selected in the given clue (clicking the selected square switches direction). */
+  const selectIn = (driver, cell, clueId) =>
+    until(`square ${cell} in ${clueId}`, async () => {
+      await driver.findElement(By.css(`.main .cell[data-cell="${cell}"]`)).click();
+      return (await label(driver)) === clueId;
+    });
+  const agree = async (guest, clueId) =>
+    (await until(`a suggestion to agree with on ${clueId}`, () => guest.findElement(By.css(`.agree-item[data-clue="${clueId}"] button.agree`)))).click();
+  const acceptMode = async text => {
+    await sidebar();
+    await host.findElement(By.xpath(`//label[contains(., '${text}')]/input`)).click();
+  };
+  let fullView = null;
 
-  for (const name of sites) {
+  for (const [i, name] of sites.entries()) {
     const site = SITES[name];
     console.log(`${name}:`);
     await host.switchTo().window(siteWindow);
-    await site.open(host);
     const onSite = async () => {
       await host.switchTo().window(siteWindow);
       await site.enter(host);
@@ -69,31 +86,33 @@ try {
         site.cells, site.letter, cells,
       );
     };
-    /** With SHOTS=1, saves the host's overlay, Sam's view and the sidebar. */
-    const shots = async label => {
-      if (!process.env.SHOTS) return;
-      await onSite();
-      await host.switchTo().defaultContent();
-      const frame = (await host.findElements(By.css('iframe[src*="amuselabs"]')))[0];
-      writeFileSync(`e2e/.artifacts/${name}${label}-host.png`, await (frame ?? host).takeScreenshot(true), 'base64');
-      writeFileSync(`e2e/.artifacts/${name}${label}-guest.png`, await sam.takeScreenshot(), 'base64');
+    const before = i > 0 && (await sam.findElements(By.css('.clue-list li'))).length;
+    await site.open(host);
+    if (i > 0) {
+      // Opening another crossword mid-session doesn't take over: it's offered.
       await sidebar();
-      await host.manage().window().setRect({ width: 360, height: 900 });
-      writeFileSync(`e2e/.artifacts/${name}${label}-sidebar.png`, await host.takeScreenshot(), 'base64');
-    };
+      const offer = await until('the new crossword offered', () => host.findElement(By.xpath("//button[normalize-space(.)='Play it instead']")), 30000);
+      if ((await sam.findElements(By.css('.clue-list li'))).length !== before) throw new Error('the new crossword took over by itself');
+      await offer.click();
+      step('the new crossword was offered rather than taking over; "Play it instead" switched everyone to it');
+      await onSite();
+    }
     const siteCellCount = await host.executeScript(`return document.querySelectorAll(arguments[0]).length`, site.cells);
-    await until('guests have the same grid', () => both(async g => (await g.findElements(By.css('.grid .cell'))).length === siteCellCount), 30000);
+    // (The two test puzzles have different numbers of clues.)
+    await until('guests have the same grid', () =>
+      both(async g => (await g.findElements(By.css('.grid .cell'))).length === siteCellCount && (await g.findElements(By.css('.clue-list li'))).length !== before),
+    30000);
     const clueCount = (await sam.findElements(By.css('.clue-list li'))).length;
     if (clueCount < 20) throw new Error(`only ${clueCount} clues`);
     if ((await sam.findElement(By.css('.cell[data-cell="0"] .num')).getText()) !== '1') throw new Error('test assumes 1A and 1D start in cell 0');
     // Clue numbers go up within each list (a linked clue once read "4" plus its link "7" as 47).
     for (const list of await sam.findElements(By.css('.clue-list'))) {
       const nums = (await Promise.all((await list.findElements(By.css('.n'))).map(n => n.getText()))).map(Number);
-      if (nums.some((n, i) => i > 0 && n <= nums[i - 1])) throw new Error(`clue numbers out of order: ${nums.join(', ')}`);
+      if (nums.some((n, j) => j > 0 && n <= nums[j - 1])) throw new Error(`clue numbers out of order: ${nums.join(', ')}`);
     }
     step(`guests see the ${siteCellCount}-cell grid and ${clueCount} clues`);
 
-    // The extension found this puzzle's answers (every white square), for race mode.
+    // The extension found this puzzle's answers (every white square), for Check and races.
     const whiteSquares = (await sam.findElements(By.css('.grid .cell:not(.block)'))).length;
     await sidebar();
     await until(`sidebar shows ${whiteSquares} answers`, async () => (await host.findElement(By.css('.answers')).getText()) === `Answers: ${whiteSquares} squares ✓`, 30000);
@@ -101,24 +120,20 @@ try {
 
     // Word breaks from the enumerations (Crosshare's cryptic has them; Vox's puzzle doesn't).
     if (name === 'crosshare') {
-      const guestBreaks = (await sam.findElements(By.css('.grid .cell.brk-r, .grid .cell.brk-b, .grid .cell.hyp-r, .grid .cell.hyp-b'))).length;
-      await onSite();
-      const overlayBreaks = await until('word breaks on the real crossword', () =>
-        host.executeScript(`return document.getElementById('group-crossword-overlay')?.shadowRoot.querySelectorAll('.break').length`),
-      );
-      if (!guestBreaks) throw new Error('no word breaks on the guest grid');
-      step(`word breaks: ${guestBreaks} on the guest grid, ${overlayBreaks} drawn on the real crossword`);
+      const breaks = (await sam.findElements(By.css('.grid .cell.brk-r, .grid .cell.brk-b, .grid .cell.hyp-r, .grid .cell.hyp-b'))).length;
+      if (!breaks) throw new Error('no word breaks on the guest grid');
+      step(`word breaks: ${breaks} on the guest grid`);
     }
 
-    // Host types on the real site.
+    // Until play starts in the tool, the grid follows the site.
     await onSite();
     await (await host.findElements(By.css(site.cells)))[0].click();
     await host.actions().sendKeys('q').perform();
     await until('guests see host letter', () => both(async g => (await letter(g, 0)) === 'Q'));
-    step('host typed Q on the site and both guests see it');
+    step('host typed Q on the site and both guests see it (before play starts in the tool, the grid follows the site)');
 
     // Sam suggests 1A and Ana 1D, both starting on the host's Q (clicking a clue jumps to its first empty square,
-    // so step back). Wide letters check that nothing spills out of its square.
+    // so step back).
     await sam.findElement(By.css('li[data-clue="1A"]')).click();
     await sam.actions().sendKeys(Key.ARROW_LEFT, 'wm', Key.ENTER).perform();
     await until('Sam sees his marks', async () => (await marks(sam)) === 2);
@@ -129,41 +144,13 @@ try {
     if ((await corner(sam, '.mark.m0')) !== 'W' || (await corner(sam, '.top-left .mark')) !== 'A') throw new Error('guest corners in the wrong order');
     await sidebar();
     await until('sidebar shows both suggestions', async () => (await host.findElements(By.css('.suggestion'))).length === 2);
-
-    await onSite();
-    const overlay = await until('overlay', async () => {
-      const r = await host.executeScript(
-        `const root = document.getElementById('group-crossword-overlay')?.shadowRoot;
-         if (!root) return null;
-         const cells = document.querySelectorAll(arguments[0]);
-         const marks = [...root.querySelectorAll('.mark')].map(m => {
-           const a = m.getBoundingClientRect(), c = cells[m.dataset.cell].getBoundingClientRect();
-           return { text: m.textContent, cell: Number(m.dataset.cell), left: a.left,
-                    inside: a.left >= c.left && a.right <= c.right && a.top >= c.top && a.bottom <= c.bottom };
-         });
-         // Where the "1" printed in the first square ends.
-         const num = [...cells[0].querySelectorAll('*')].find(el => !el.childElementCount && el.textContent.replace(/\\D/g, '') === '1');
-         const range = document.createRange();
-         range.selectNodeContents(num);
-         return { marks, numberRight: range.getBoundingClientRect().right, badges: [...root.querySelectorAll('.badge')].map(b => b.title) };`,
-        site.cells,
-      );
-      return r && r.marks.length === 4 && r.badges.length === 2 && r;
-    });
-    const spilled = overlay.marks.filter(m => !m.inside).map(m => m.text);
-    if (spilled.length) throw new Error(`overlay letters spill out of their squares: ${spilled}`);
-    const [first, second] = overlay.marks.filter(m => m.cell === 0);
-    if (first.text !== 'W' || second.text !== 'A' || !(second.left < first.left)) throw new Error('overlay corners in the wrong order');
-    if (second.left < overlay.numberRight) throw new Error('top-left letter overlaps the clue number');
-    await shots('');
-    step(`overlay: ${overlay.marks.map(m => m.text).join(',')} inside their squares; W top-right, A top-left after the number; badges for ${overlay.badges.join(' and ')}`);
+    step('Sam suggested WM for 1A and Ana AB for 1D: W top-right, A top-left after the number');
 
     // Ana backs Sam's 1A with 👍 Agree: the letters combine into one grey letter each, top-right,
     // and the host sees one combined card at the top of the list (above Ana's earlier 1D).
     await ana.findElement(By.css('li[data-clue="1A"]')).click();
-    const agreeButton = await until("Sam's 1A in Ana's agree strip", () => ana.findElement(By.css('.agree-item[data-clue="1A"] button.agree')));
     await shot(ana, `${name}-agree`);
-    await agreeButton.click();
+    await agree(ana, '1A');
     const GREY = 'rgb(138, 138, 138)';
     await until('agreed letters shown once, in grey, top-right', () =>
       both(async g => {
@@ -172,35 +159,28 @@ try {
         return cell0.length === 1 && (await m0.getText()) === 'W' && (await m0.getCssValue('color')) === GREY;
       }),
     );
-    await onSite();
-    const agreedOverlay = await until('overlay combines the agreed letters', async () => {
-      const r = await host.executeScript(
-        `return [...document.getElementById('group-crossword-overlay').shadowRoot.querySelectorAll('.mark')]
-           .map(m => ({ text: m.textContent, cell: Number(m.dataset.cell), color: getComputedStyle(m).color }));`,
-      );
-      const cell0 = r.filter(m => m.cell === 0);
-      return cell0.length === 1 && cell0[0].text === 'W' && cell0[0].color === GREY && r;
-    });
     await sidebar();
     const cards = await until('one combined card on top', async () => {
       const c = await host.findElements(By.css('.suggestion .who'));
       return c.length === 2 && (await c[0].getText()).includes('Sam + Ana') && c;
     });
-    await shots('-agreed');
-    await sidebar();
-    step(`Ana pressed 👍 Agree on Sam's 1A: grey W and M on the guests and the overlay (${agreedOverlay.length} marks), and "${(await cards[0].getText()).replace(/\s+/g, ' ')}" tops the sidebar`);
+    await shot(host, `${name}-sidebar`);
+    step(`Ana pressed 👍 Agree on Sam's 1A: grey W and M for both guests, and "${(await cards[0].getText()).replace(/\s+/g, ' ')}" tops the sidebar`);
 
-    // Host accepts the combined card, then undoes it.
+    // Host accepts the combined card: it goes into the shared grid, not the site, which now says so.
     await (await host.findElements(By.xpath("//button[normalize-space(.)='Accept']")))[0].click();
-    await until('site has WM', async () => (await siteLetters(0, 1)) === 'WM');
     await until('guests see WM', () => both(async g => (await letter(g, 0)) + (await letter(g, 1)) === 'WM'));
     await sidebar();
     await until('both 1A suggestions cleared', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
-    step('host accepted the combined 1A: WM typed into the site, synced to both guests, and both suggestions cleared');
+    if ((await siteLetters(0, 1)) !== 'Q') throw new Error('accepting typed onto the site');
+    const notice = await until('the notice on the site', () =>
+      host.executeScript(`const n = document.getElementById('group-crossword-notice')?.shadowRoot.querySelector('.note'); return n && !n.hidden && n.textContent;`),
+    );
+    step(`host accepted the combined 1A: WM in the shared grid for both guests, the site untouched, and it says "${notice}"`);
+    await sidebar();
     const undoButton = await until('Undo button', () => host.findElement(By.css('button.undo')));
     if (!(await undoButton.getText()).includes('Sam + Ana · 1A')) throw new Error(`undo label: ${await undoButton.getText()}`);
     await undoButton.click();
-    await until('site back to Q', async () => (await siteLetters(0, 1)) === 'Q');
     await until('guests see Q again', () => both(async g => (await letter(g, 0)) === 'Q' && (await letter(g, 1)) === ''));
     await sidebar();
     if ((await host.findElements(By.css('button.undo'))).length) throw new Error('undo still offered');
@@ -210,67 +190,120 @@ try {
     await host.findElement(By.xpath("//button[normalize-space(.)='Reject']")).click();
     await until('Ana told about rejection', async () => (await ana.findElement(By.css('.toast')).getText()).includes('rejected'));
     await until('marks gone', () => both(async g => (await marks(g)) === 0));
-    if ((await siteLetters(0, 1)) !== 'Q') throw new Error('rejected suggestion changed the site');
-    step("host rejected Ana's 1D: she was told and nothing was typed");
+    step("host rejected Ana's 1D: she was told and nothing went in");
 
-    // Sam suggests 1D; the host types those same letters on the site, so the suggestion clears by itself.
+    // Typing: Space switches direction, and the crossing clue is highlighted in the list.
+    const was = await label(sam);
+    await sam.actions().sendKeys(Key.SPACE).perform();
+    const now = await until('Space switches direction', async () => {
+      const l = await label(sam);
+      return l !== was && l;
+    });
+    if (!(await sam.findElements(By.css('.clue-list li.crossing'))).length) throw new Error('no crossing clue highlighted');
+    step(`Space switched ${was} to ${now}; the crossing clue is highlighted`);
+
+    // The host's full view: writing there goes straight into the shared grid; a matching suggestion clears itself.
+    if (!fullView) {
+      await sidebar();
+      const windows = await host.getAllWindowHandles();
+      await host.findElement(By.xpath("//button[normalize-space(.)='Open full view']")).click();
+      fullView = await switchToNewWindow(host, windows, 'full view');
+      await host.manage().window().setRect({ width: 1500, height: 1000 });
+    }
+    const full = async () => host.switchTo().window(fullView);
+    await full();
+    await until('full view board', async () => (await host.findElements(By.css('.coop .grid .cell'))).length === siteCellCount);
     const cols = Math.sqrt(siteCellCount);
     if (!Number.isInteger(cols)) throw new Error('test assumes a square grid');
     await sam.findElement(By.css('li[data-clue="1D"]')).click();
     await sam.actions().sendKeys(Key.ARROW_UP, 'zx', Key.ENTER).perform();
     await sidebar();
-    await until('sidebar shows Sam\'s 1D', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
-    await onSite();
-    for (const [cell, key] of [[0, 'z'], [cols, 'x']]) {
-      await (await host.findElements(By.css(site.cells)))[cell].click();
-      await host.actions().sendKeys(key).perform();
-    }
-    await until('guests see ZX as real letters, marks gone', () =>
-      both(async g => (await letter(g, 0)) + (await letter(g, cols)) === 'ZX' && (await marks(g)) === 0),
-    );
+    await until("sidebar shows Sam's 1D", async () => (await host.findElements(By.css('.suggestion'))).length === 1);
+    await full();
+    await selectIn(host, 0, '1D');
+    await host.actions().sendKeys('zx').perform();
+    await until('guests see ZX, marks gone', () => both(async g => (await letter(g, 0)) + (await letter(g, cols)) === 'ZX' && (await marks(g)) === 0));
     await sidebar();
     await until('sidebar queue empty', async () => (await host.findElements(By.css('.suggestion'))).length === 0);
-    step("host typed Sam's suggested 1D letters on the site: the suggestion cleared by itself");
+    if ((await siteLetters(0)) !== 'Q') throw new Error('writing in the full view typed onto the site');
+    step("full view: the host wrote ZX into 1D; Sam's matching suggestion cleared itself, and the site was left alone");
 
-    // Typing: Space switches direction, and the crossing clue is highlighted in the list.
-    const label = async guest => guest.findElement(By.css('.clue-bar-text b')).getText();
-    const before = await label(sam);
-    await sam.actions().sendKeys(Key.SPACE).perform();
-    const after = await until('Space switches direction', async () => {
-      const now = await label(sam);
-      return now !== before && now;
-    });
-    if (!(await sam.findElements(By.css('.clue-list li.crossing'))).length) throw new Error('no crossing clue highlighted');
-    step(`Space switched ${before} to ${after}; the crossing clue is highlighted`);
+    // Once play has started in the tool, typing on the site isn't shared.
+    await onSite();
+    await (await host.findElements(By.css(site.cells)))[2].click();
+    await host.actions().sendKeys('y').perform();
+    await host.sleep(1500);
+    if ((await letter(sam, 2)) === 'Y') throw new Error('typing on the site still reaches the guests');
+    step('host typed on the site after play started in the tool: not shared, as the notice says');
 
-    // Accepting automatically: once two agree, then for trusted friends.
-    const acceptMode = async label => {
-      await sidebar();
-      await host.findElement(By.xpath(`//label[contains(., '${label}')]/input`)).click();
-    };
-    const selectIn = (guest, cell, clueId) =>
-      until(`square ${cell} in ${clueId}`, async () => {
-        await guest.findElement(By.css(`.cell[data-cell="${cell}"]`)).click();
-        return (await label(guest)) === clueId;
-      });
+    // Accepting automatically: once two agree, then for trusted friends (but the host's own suggestions still wait).
     await acceptMode('once 2 or more agree');
     await selectIn(sam, 1, '1A');
     await sam.actions().sendKeys('p', Key.ENTER).perform();
     await ana.findElement(By.css('li[data-clue="1A"]')).click();
-    await (await until("Sam's P in Ana's agree strip", () => ana.findElement(By.css('.agree-item[data-clue="1A"] button.agree')))).click();
-    await until('the agreed answer went in by itself', async () => (await siteLetters(1)) === 'P');
-    step('setting "once 2 or more agree": Ana agreed with Sam\'s P and it went onto the site by itself');
+    await agree(ana, '1A');
+    await until('the agreed answer went in by itself', () => both(async g => (await letter(g, 1)) === 'P'));
+    step('setting "once 2 or more agree": Ana agreed with Sam\'s P and it went in by itself');
     await acceptMode('trusted');
     await selectIn(sam, 2, '1A');
     await sam.actions().sendKeys('k', Key.ENTER).perform();
-    await until('the trusted answer went in by itself', async () => (await siteLetters(2)) === 'K');
+    await until('the trusted answer went in by itself', () => both(async g => (await letter(g, 2)) === 'K'));
+    await full();
+    await host.findElement(By.xpath("//span[@class='write-mode']/button[normalize-space(.)='Suggest']")).click();
+    await selectIn(host, 3, '1A');
+    await host.actions().sendKeys('t', Key.ENTER).perform();
+    await sam.findElement(By.css('li[data-clue="1A"]')).click();
+    await until("the host's suggestion in Sam's agree strip", () => sam.findElement(By.css('.agree-item[data-clue="1A"]')));
+    if ((await letter(sam, 3)) === 'T') throw new Error("the host's suggestion went in without anyone agreeing");
+    await agree(sam, '1A');
+    await until("the host's T went in once Sam agreed", () => both(async g => (await letter(g, 3)) === 'T'));
+    await full();
+    await host.findElement(By.xpath("//span[@class='write-mode']/button[normalize-space(.)='Write in']")).click();
     await acceptMode('When I accept them');
-    step('setting "trusted": Sam\'s K went straight onto the site');
+    step('setting "trusted": Sam\'s K went straight in; the host\'s own suggestion T waited until Sam agreed');
 
-    // The anagram pad: a letter placed from the wheel goes into the answer's first empty square, as a draft.
-    await selectIn(sam, 3, '1A');
+    // A player's suggestions for the same clue add up, square by square, and they can take them back.
+    await selectIn(sam, 1, '1A');
+    await sam.actions().sendKeys('e', Key.ENTER).perform();
+    await selectIn(sam, 2, '1A');
+    await sam.actions().sendKeys('f', Key.ENTER).perform();
+    const mine = await until("Sam's merged suggestion", async () => {
+      const spans = await sam.findElements(By.css('.agree-item[data-clue="1A"] .letters span:not(.blank)'));
+      const text = (await Promise.all(spans.map(s => s.getText()))).join('');
+      return text === 'EF' && text;
+    });
+    await sidebar();
+    await until('one card for both squares', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
+    await sam.findElement(By.css('.agree-item[data-clue="1A"] button.withdraw')).click();
+    await until('suggestion taken back', async () => (await host.findElements(By.css('.suggestion'))).length === 0);
+    step(`Sam suggested E, then F, for 1A: one suggestion "${mine}"; then he took it back`);
+
+    // The host's Check marks wrong squares for everyone.
+    await full();
+    await host.findElement(By.xpath("//span[@class='check']/button[normalize-space(.)='Grid']")).click();
+    const checked = await until('check result for the guests', async () => {
+      const toast = await sam.findElements(By.css('.toast-item'));
+      return toast.length && (await toast[0].getText()).startsWith('Checked the grid') && (await toast[0].getText());
+    });
+    const wrongCount = (await sam.findElements(By.css('.cell.wrong'))).length;
+    if (!wrongCount || !checked.includes(`${wrongCount} wrong`)) throw new Error(`check said "${checked}" with ${wrongCount} squares marked`);
+    step(`host checked the grid: "${checked}", and the guests see ${wrongCount} squares marked`);
+
+    // The anagram pad: pick a square, then a letter from the wheel; Use puts it there as a draft.
+    const acrossClues = await sam.findElements(By.css('.clue-list li[data-clue$="A"]'));
+    let emptyCells = null;
+    for (const li of acrossClues.slice(1)) {
+      await li.click();
+      const cells = await sam.executeScript(`return [...document.querySelectorAll('.main .cell.in-clue')].map(c => ({ cell: +c.dataset.cell, letter: c.querySelector('.letter').textContent }))`);
+      if (cells.length >= 3 && cells.every(c => !c.letter)) {
+        emptyCells = cells.map(c => c.cell);
+        break;
+      }
+    }
+    if (!emptyCells) throw new Error('no empty across answer for the anagram pad');
     await sam.findElement(By.xpath("//button[normalize-space(.)='Anagram']")).click();
     await (await until('anagram box', () => sam.findElement(By.css('.anagram-input')))).sendKeys('xy');
+    await (await sam.findElements(By.css('button.anagram-slot')))[1].click();
     const wheel = await until('two letters on the wheel', async () => {
       const letters = await sam.findElements(By.css('.anagram-letter'));
       return letters.length === 2 && letters;
@@ -278,38 +311,97 @@ try {
     await wheel[0].click();
     await shot(sam, `${name}-anagram`);
     await sam.findElement(By.xpath("//div[@class='anagram-actions']/button[normalize-space(.)='Use']")).click();
-    await until('anagram letter in the grid as a draft', async () => (await sam.findElements(By.css('.cell[data-cell="3"] .letter.draft'))).length === 1);
+    await until('anagram letter in the second square, as a draft', async () => (await sam.findElements(By.css(`.cell[data-cell="${emptyCells[1]}"] .letter.draft`))).length === 1);
     await sam.actions().sendKeys(Key.ESCAPE).perform();
-    step('anagram pad: a letter from the wheel went into the first empty square of 1A as a draft');
+    step('anagram pad: the second square was picked, and a letter from the wheel went there as a draft');
 
-    // The co-op replay, scrubbed to the end, shows exactly what's on the site.
-    await sam.findElement(By.xpath("//div[@class='footer']/button[normalize-space(.)='Replay']")).click();
+    // Definitions, notes and zoom.
+    await sam.findElement(By.xpath("//button[normalize-space(.)='Define']")).click();
+    await (await until('define box', () => sam.findElement(By.css('.define-input')))).sendKeys('plank', Key.ENTER);
+    const meanings = await until('meanings of "plank"', async () => {
+      const items = await sam.findElements(By.css('.define-results li'));
+      return items.length && items;
+    }, 20000);
+    await shot(sam, `${name}-define`);
+    await sam.findElement(By.xpath("//div[@class='define-form']/button[@title='Close']")).click();
+    await sam.findElement(By.xpath("//div[@class='board-foot']/button[normalize-space(.)='Notes']")).click();
+    const drafts = async () => (await sam.findElements(By.css('.letter.draft'))).length;
+    const draftsBefore = await drafts();
+    await (await until('notes', () => sam.findElement(By.css('textarea.scratchpad')))).sendKeys('abc');
+    if ((await drafts()) !== draftsBefore) throw new Error('typing in the notes typed into the grid');
+    const width = async () => (await sam.findElement(By.css('.main .grid')).getRect()).width;
+    const normal = await width();
+    await sam.findElement(By.css('.zoom button[title="Zoom in"]')).click();
+    await until('zoomed in', async () => (await width()) > normal * 1.2);
+    await sam.findElement(By.css('.zoom button[title="Zoom out"]')).click();
+    await until('zoomed back out', async () => Math.abs((await width()) - normal) < 2);
+    await sam.findElement(By.xpath("//div[@class='board-foot']/button[normalize-space(.)='Notes']")).click();
+    step(`define: ${meanings.length} meanings of "plank"; notes typed without touching the grid; zoom in and back out`);
+
+    // The co-op replay, scrubbed to the end, shows exactly the shared grid.
+    await sam.findElement(By.xpath("//div[@class='board-foot']/button[normalize-space(.)='Replay']")).click();
     await until('replay of the solve so far', async () => Number(await sam.findElement(By.css('.modal .replay-scrubber')).getAttribute('max')) > 0);
     await sam.executeScript(`const s = document.querySelector('.modal .replay-scrubber'); s.value = s.max; s.dispatchEvent(new Event('input', { bubbles: true }));`);
-    const everyCell = [...Array(siteCellCount).keys()];
-    const onSiteNow = await siteLetters(...everyCell);
-    await until('the replay ends where the site is', async () =>
-      (await sam.executeScript(`return [...document.querySelectorAll('.modal .replay-boards .cell')].map(c => c.querySelector('.letter')?.textContent || '').join('')`)) === onSiteNow,
+    const gridNow = await ana.executeScript(`return [...document.querySelectorAll('.main .grid .cell')].map(c => c.querySelector('.letter')?.textContent || '').join('')`);
+    await until('the replay ends where the grid is', async () =>
+      (await sam.executeScript(`return [...document.querySelectorAll('.modal .replay-boards .cell')].map(c => c.querySelector('.letter')?.textContent || '').join('')`)) === gridNow,
     );
     await shot(sam, `${name}-replay`);
     await sam.findElement(By.xpath("//div[@class='modal-head']/button[normalize-space(.)='Close']")).click();
-    step('co-op replay: scrubbed to the end, it shows exactly the letters on the site');
+    step('co-op replay: scrubbed to the end, it shows exactly the shared grid');
 
-    // The host's full view: the same board, and typing there goes straight onto the site.
-    await sidebar();
-    const windows = await host.getAllWindowHandles();
-    await host.findElement(By.xpath("//button[normalize-space(.)='Open full view']")).click();
-    const fullView = await switchToNewWindow(host, windows, 'full view');
-    await until('full view board', async () => (await host.findElements(By.css('.coop .grid .cell'))).length === siteCellCount);
-    await host.findElement(By.css('.coop .cell[data-cell="4"]')).click();
-    await host.actions().sendKeys('j').perform();
-    await until("the host's letter reached the site", async () => (await siteLetters(4)) === 'J');
-    await host.switchTo().window(fullView);
-    await host.manage().window().setRect({ width: 1500, height: 1000 });
+    // A guest can change their name mid-game.
+    if (i === 0) {
+      const rename = async to => {
+        await sam.findElement(By.xpath("//button[normalize-space(.)='Change your name or colour']")).click();
+        const input = await until('name box', () => sam.findElement(By.css('.modal .join input')));
+        await input.sendKeys(Key.END, ...Array(10).fill(Key.BACK_SPACE), to);
+        await sam.findElement(By.css('.modal .join button[type=submit]')).click();
+        await sidebar();
+        await until(`host sees ${to}`, async () => (await host.findElement(By.css('ul.players')).getText()).includes(to));
+      };
+      await rename('Samuel');
+      await rename('Sam');
+      step('Sam renamed himself Samuel mid-game (and back), and the host saw it');
+    }
+
+    // Solving: Ana reads the answers from the real site in a window of her own; the host writes them in. Everyone
+    // sees it's solved, and the host fills in the real crossword.
+    const guestWindow = await ana.getWindowHandle();
+    await ana.switchTo().newWindow('window');
+    await site.open(ana);
+    await site.reveal(ana);
+    const answers = await until('revealed grid', async () => {
+      await site.enter(ana);
+      const letters = await readSite(ana, site);
+      return letters.filter(Boolean).length === whiteSquares && letters;
+    }, 30000);
+    await ana.close();
+    await ana.switchTo().window(guestWindow);
+    await full();
+    await host.executeScript(
+      `const port = browser.runtime.connect({ name: 'full' });
+       port.postMessage({ type: 'type', cells: arguments[0] });
+       setTimeout(() => port.disconnect(), 1000);`,
+      answers.flatMap((letter, cell) => (letter ? [{ cell, letter }] : [])),
+    );
+    await until('everyone sees it solved', () =>
+      both(async g => (await g.findElements(By.css('.toast-item.solved'))).length === 1),
+    );
+    // Every clue is filled in, so every clue is greyed out.
+    const greyed = await sam.executeScript(
+      `const items = [...document.querySelectorAll('.clue-list li')];
+       return items.every(li => li.classList.contains('done')) && getComputedStyle(items[0].querySelector('.t')).color !== getComputedStyle(document.body).color;`,
+    );
+    if (!greyed) throw new Error("finished clues aren't greyed out");
+    const fill = await until('Fill in button', () => host.findElement(By.xpath("//button[normalize-space(.)='Fill in the crossword']")));
     await shot(host, `${name}-fullview`);
-    await host.close();
-    await sidebar();
-    step('full view: the host typed J on the board there and it went onto the real crossword');
+    await fill.click();
+    const all = [...Array(siteCellCount).keys()];
+    await until('the site filled in', async () => (await siteLetters(...all)) === answers.join(''), 30000);
+    await full();
+    await until('filled in, says the full view', async () => (await host.findElement(By.css('.toast-item.solved')).getText()).includes('Filled in on the site'));
+    step('solved: everyone saw "Solved! 🎉", and Fill in typed the grid into the real crossword');
   }
   console.log('\nAll end-to-end checks passed.');
 } catch (e) {

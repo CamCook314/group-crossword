@@ -16,12 +16,23 @@ export function RaceView({ status, send }: { status: RaceViewStatus; send: (msg:
   const now = useNow(phase === 'countdown' || phase === 'racing');
   const player = (id: string) => status.players.find(p => p.id === id);
   const clock = goAt === null || phase === 'countdown' ? '' : formatTime((status.endedAt ?? now) - goAt);
+  // Racing yourself opens the racer's page in its own window, with the join form filled in with your name and colour.
+  const play = () =>
+    status.session &&
+    browser.windows.create({
+      url: `${status.session.link}?name=${encodeURIComponent(status.host.name)}&color=${encodeURIComponent(status.host.color)}`,
+    });
 
   return (
     <>
       <div class="race-head">
         <h2>Race</h2>
         {clock && <span class="clock">{clock}</span>}
+        {(phase === 'lobby' || phase === 'racing') && (
+          <button class="play" onClick={play} disabled={!status.session} title={status.session ? 'Race yourself, in a new window' : 'Start a session first'}>
+            Join as a racer
+          </button>
+        )}
         {phase === 'racing' && (
           <button class="secondary" onClick={() => send({ type: 'end-race' })}>
             End race
@@ -62,13 +73,6 @@ function Lobby({ status, send }: { status: RaceViewStatus; send: (msg: Command) 
           ? 'Waiting for someone to join.'
           : null;
 
-  // Play opens the racer's page in its own window, with the join form filled in with your name and colour.
-  const play = () =>
-    session &&
-    browser.windows.create({
-      url: `${session.link}?name=${encodeURIComponent(status.host.name)}&color=${encodeURIComponent(status.host.color)}`,
-    });
-
   return (
     <>
       <section>
@@ -77,10 +81,13 @@ function Lobby({ status, send }: { status: RaceViewStatus; send: (msg: Command) 
           {pagePuzzle ? `${pagePuzzle.title} (${pagePuzzle.cols}×${pagePuzzle.rows})` : 'No crossword open'}
           {pagePuzzle && <span class={answersReady ? 'ok' : 'hint'}> · Answers: {answersReady ? `${answers} squares ✓` : answers === 'reading' ? 'reading…' : 'not found'}</span>}
         </p>
-        {session && (
-          <button class="secondary" onClick={play} title="Race yourself, in a new window">
-            Play
-          </button>
+        {status.otherPuzzle && (
+          <p class="puzzle">
+            Also open: <b>{status.otherPuzzle.title}</b>{' '}
+            <button class="secondary" onClick={() => send({ type: 'switch-puzzle' })}>
+              Play it instead
+            </button>
+          </p>
         )}
       </section>
 
@@ -128,7 +135,7 @@ function Lobby({ status, send }: { status: RaceViewStatus; send: (msg: Command) 
             ))}
           </ul>
         ) : (
-          <p class="hint">Nobody yet. Send them the link, or press Play to race yourself.</p>
+          <p class="hint">Nobody yet. Send them the link, or join as a racer yourself.</p>
         )}
         <button class="start" disabled={Boolean(problem)} onClick={() => send({ type: 'start-race' })}>
           Start race

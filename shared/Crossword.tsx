@@ -18,6 +18,8 @@ export interface CursorOptions {
   onKey?(key: string): boolean;
   /** Ignore the keyboard, e.g. once a racer has finished. */
   disabled?: boolean;
+  /** Stay on the answer once it's filled instead of moving on: a guest still has to suggest it. */
+  stayInAnswer?: boolean;
 }
 
 /** The selected square and direction, moved by clicks and the keyboard. */
@@ -90,7 +92,7 @@ export function useCursor(puzzle: Puzzle, opts: CursorOptions) {
       const emptyAt = (i: number) => i !== index && opts.isEmpty(squares[i].cell);
       const later = wasEmpty ? squares.findIndex((_, i) => i > index && emptyAt(i)) : index + 1 < squares.length ? index + 1 : -1;
       const earlier = squares.findIndex((_, i) => i < index && emptyAt(i));
-      go(later >= 0 ? squares[later] : earlier >= 0 ? squares[earlier] : nextUnfinished());
+      go(later >= 0 ? squares[later] : earlier >= 0 ? squares[earlier] : opts.stayInAnswer ? undefined : nextUnfinished());
       return true;
     }
     switch (key) {
@@ -134,13 +136,15 @@ export function useCursor(puzzle: Puzzle, opts: CursorOptions) {
   latestOnKey.current = onKey;
   useEffect(() => {
     const listener = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       if (latestOnKey.current(e.key, e.shiftKey)) e.preventDefault();
     };
     addEventListener('keydown', listener);
     return () => removeEventListener('keydown', listener);
   }, []);
   useEffect(() => document.querySelector('.clue-list li.current')?.scrollIntoView({ block: 'nearest' }), [clue?.id]);
+  // When zoomed in, keep the cursor in view.
+  useEffect(() => document.querySelector('.grid-box .cell.cursor')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }), [sel.cell]);
 
   return { sel, clue, answer, crossing, refs, answerCells, refCells, selectCell, selectClue };
 }
@@ -211,6 +215,7 @@ export function ClueLists({
   refs = [],
   onSelect,
   after,
+  done,
 }: {
   puzzle: Puzzle;
   /** The selected answer's entries. */
@@ -220,28 +225,76 @@ export function ClueLists({
   /** Clues the selected answer refers to. */
   refs?: string[];
   onSelect(clue: Clue): void;
-  /** Anything to show after a clue's text, e.g. player badges. */
+  /** Player badges for a clue, shown in a space kept for them so they never move the clue's text. */
   after?(clue: Clue): ComponentChildren;
+  /** Is this clue's entry filled in? Filled clues are greyed out. */
+  done?(clue: Clue): boolean;
 }) {
-  const classOf = (id: string) => (current.includes(id) ? 'current' : id === crossing ? 'crossing' : refs.includes(id) ? 'ref' : '');
+  const classOf = (c: Clue) =>
+    [current.includes(c.id) ? 'current' : c.id === crossing ? 'crossing' : refs.includes(c.id) && 'ref', done?.(c) && 'done'].filter(Boolean).join(' ');
   return (
     <div class="clues">
       {(['A', 'D'] as const).map(dir => (
         <div class="clue-list">
           <h3>{dir === 'A' ? 'Across' : 'Down'}</h3>
-          <ol>
+          <ol class={after ? 'with-badges' : ''}>
             {puzzle.clues
               .filter(c => c.dir === dir)
               .map(c => (
-                <li class={classOf(c.id)} data-clue={c.id} onClick={() => onSelect(c)}>
+                <li class={classOf(c)} data-clue={c.id} onClick={() => onSelect(c)}>
                   <span class="n">{c.num}</span>
                   <span class="t">{c.text}</span>
-                  {after?.(c)}
+                  {after && <span class="badges">{after(c)}</span>}
                 </li>
               ))}
           </ol>
         </div>
       ))}
+    </div>
+  );
+}
+
+const ZOOMS = [1, 1.25, 1.5, 2, 2.5, 3];
+
+function savedZoom() {
+  try {
+    const zoom = Number(localStorage.getItem('zoom'));
+    return ZOOMS.includes(zoom) ? zoom : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * The board's part of the solving view: the grid as big as fits, zoom buttons (zooming in makes the grid scroll; the
+ * choice is remembered), `tools` beside them, and `below` underneath (e.g. the scratchpad).
+ */
+export function BoardArea({ children, tools, below }: { children: ComponentChildren; tools?: ComponentChildren; below?: ComponentChildren }) {
+  const [zoom, setZoom] = useState(savedZoom);
+  const zoomTo = (step: number) => {
+    const next = ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(zoom) + step))];
+    setZoom(next);
+    try {
+      localStorage.setItem('zoom', String(next));
+    } catch {}
+  };
+  return (
+    <div class="board-area">
+      <div class="grid-box" style={{ '--zoom': zoom }}>
+        {children}
+      </div>
+      <div class="board-foot">
+        <span class="zoom">
+          <button class="secondary" onClick={() => zoomTo(-1)} disabled={zoom === ZOOMS[0]} title="Zoom out">
+            −
+          </button>
+          <button class="secondary" onClick={() => zoomTo(1)} disabled={zoom === ZOOMS.at(-1)} title="Zoom in">
+            +
+          </button>
+        </span>
+        {tools}
+      </div>
+      {below}
     </div>
   );
 }

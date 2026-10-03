@@ -33,13 +33,26 @@ export interface RoomState {
   acceptMode: AcceptMode;
   /** In a race, only sent once the countdown starts. */
   puzzle: Puzzle | null;
-  /** Co-op: letters on the host's real crossword, one per cell ('' = empty). */
+  /** Co-op: the shared grid, one letter per cell ('' = empty). */
   letters: string[];
   players: Player[];
   /** Co-op only. */
   suggestions: Suggestion[];
+  /** Co-op: squares the host checked and found wrong, until they change. */
+  wrong: number[];
+  /** Co-op: the host's latest check, so everyone sees how it went. */
+  check: { label: string; wrong: number; at: number } | null;
+  /** Co-op: once every square is filled, whether it's right ('full' when there are no answers to tell). */
+  finished: 'solved' | 'wrong' | 'full' | null;
   /** Race only. */
   race: RaceState | null;
+}
+
+/** A racer's grid, for racers who have finished to watch the others. */
+export interface RacerBoard {
+  id: string;
+  letters: string[];
+  status: ('' | 'right' | 'wrong')[];
 }
 
 export type RacePhase = 'lobby' | 'countdown' | 'racing' | 'done';
@@ -86,11 +99,14 @@ export type HostMessage =
   /** To a racer whose full grid is wrong: any penalty just added, and how long until another is possible. */
   | { t: 'not-quite'; penaltyMs: number; cooldownMs: number }
   /** The co-op solve so far, for watching it back (asked for with get-replay). */
-  | { t: 'replay'; events: ReplayEvent[]; durationMs: number };
+  | { t: 'replay'; events: ReplayEvent[]; durationMs: number }
+  /** To racers who have finished: everyone's grid, live. */
+  | { t: 'race-boards'; boards: RacerBoard[] };
 
 export type GuestMessage =
   | { t: 'hello'; clientId: string; name: string; color: string }
   | { t: 'select'; clueId: string | null }
+  /** Merged into the player's earlier suggestion for the clue; all blank withdraws it. */
   | { t: 'suggest'; clueId: string; letters: string[] }
   /** A racer's whole grid, whenever it changes. */
   | { t: 'race-letters'; letters: string[] }

@@ -40,15 +40,6 @@ const adapter: SiteAdapter = {
     return { puzzle: buildPuzzle(title, g.rows, g.cols, blocks, clues), letters, clueId: active ? active.num + active.dir : null };
   },
 
-  cells: () => grid()?.cells ?? [],
-
-  clueElement(clueId) {
-    return clueItems().find(({ num, dir }) => num + dir === clueId)?.li ?? null;
-  },
-
-  // Clue numbers are right-aligned in a wide column, leaving space on the left; the text runs to the right edge.
-  badgeSide: 'left',
-
   setLetter(cell, letter) {
     (grid()?.cells[cell] as HTMLElement | undefined)?.click();
     // Crosshare listens for keydown on window; it ignores events dispatched on window itself, so send it via body.

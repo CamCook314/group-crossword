@@ -7,12 +7,13 @@ export interface Connection {
 }
 
 /**
- * Connects to the host's room and says hello.
+ * Connects to the host's room. The host sends the room straight away (so the join screen can show who's there);
+ * `hello()` gives the hello to send, once you've joined, whenever the connection opens.
  * onProblem gets a message while connecting or when something goes wrong, and null once connected.
  */
 export function connect(
   roomId: string,
-  hello: GuestMessage,
+  hello: () => GuestMessage | null,
   onMessage: (msg: HostMessage) => void,
   onProblem: (problem: string | null) => void,
 ): Connection {
@@ -22,7 +23,8 @@ export function connect(
     const c = peer.connect(roomId, { reliable: true });
     conn = c;
     c.on('open', () => {
-      c.send(hello);
+      const h = hello();
+      if (h) c.send(h);
       onProblem(null);
     });
     c.on('data', data => onMessage(data as HostMessage));

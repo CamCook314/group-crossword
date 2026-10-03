@@ -54,7 +54,7 @@ Status: ⏳ to do, ❓ needs a decision, ✅ done.
 | 20 | Anagram pad: picking a letter only puts it in the first empty square. You should be able to place letters in any order, anywhere. | Click a square on the pad to choose where the next letter goes, and click a placed letter to send it back to the ring. | ⏳ |
 | 21 | Anagram pad: letters already in the answer's squares should be taken off the ring if they were typed in with the rest. | Leave those letters off the ring. | ⏳ |
 | 22 | A scratchpad to type freely in, below the puzzle, behind a button. | Private notes per player, kept per puzzle. | ⏳ |
-| 25 | A definition tool, so players can look up what a word means. | A "Define" tool beside Anagram: type a word and see its meanings and synonyms, from the free dictionaryapi.dev (no key; only the looked-up word is sent). | ⏳ |
+| 25 | A definition tool, so players can look up what a word means. | A "Define" tool beside Anagram: type a word and see its meanings and synonyms, from the free Datamuse service (no key needed; only the looked-up word is sent). | ⏳ |
 
 ## Race
 

@@ -2,7 +2,7 @@
 import { Peer, type DataConnection } from 'peerjs';
 import { COLORS, GUEST_URL, parseGuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../shared/protocol';
 import { puzzleKey } from '../../shared/puzzle';
-import { cellsToApply, pruneSuggestions, upsertSuggestion } from '../../shared/suggestions';
+import { cellsToApply, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
 import type { FromSidebar, HostProfile, PageSnapshot, SidebarStatus, ToAdapter } from './messages';
 
 const HOST_ID = 'host';
@@ -23,7 +23,7 @@ const guests = new Map<string, Player>();
 let suggestions: Suggestion[] = [];
 let session: Session | null = null;
 /** What the last accepted suggestion changed on the site, so it can be undone. */
-let lastAccept: { playerId: string; clueId: string; changes: { cell: number; before: string; after: string }[] } | null = null;
+let lastAccept: { playerIds: string[]; clueId: string; changes: { cell: number; before: string; after: string }[] } | null = null;
 
 browser.storage.local.get('host').then(stored => {
   if (stored.host) host = stored.host as HostProfile;
@@ -47,7 +47,7 @@ function update() {
     state,
     host,
     session: session && { link: GUEST_URL + '#' + session.roomId, status: session.status },
-    undo: lastAccept && { playerId: lastAccept.playerId, clueId: lastAccept.clueId },
+    undo: lastAccept && { playerIds: lastAccept.playerIds, clueId: lastAccept.clueId },
   };
   for (const port of sidebars) port.postMessage(status);
   adapter?.postMessage({ type: 'overlay', state: session ? state : null } satisfies ToAdapter);
@@ -143,14 +143,15 @@ function onSidebarMessage(msg: FromSidebar) {
       browser.storage.local.set({ host });
       return update();
     case 'accept': {
-      const s = suggestions.find(x => x.playerId === msg.playerId && x.clueId === msg.clueId);
-      if (!s || !page) return;
+      // Everyone who made this exact suggestion.
+      const group = suggestions.filter(x => x.clueId === msg.clueId && sameLetters(x.letters, msg.letters));
+      if (!group.length || !page) return;
       const letters = page.letters;
-      const changes = cellsToApply(page.puzzle, s)
+      const changes = cellsToApply(page.puzzle, group[0])
         .map(({ cell, letter }) => ({ cell, before: letters[cell], after: letter }))
         .filter(c => c.before !== c.after);
-      lastAccept = changes.length ? { playerId: s.playerId, clueId: s.clueId, changes } : null;
-      // The suggestion disappears by itself once its letters show up on the site.
+      lastAccept = changes.length ? { playerIds: group.map(x => x.playerId), clueId: msg.clueId, changes } : null;
+      // The suggestions disappear by themselves once their letters show up on the site.
       adapter?.postMessage({ type: 'apply', cells: changes.map(c => ({ cell: c.cell, letter: c.after })) } satisfies ToAdapter);
       return update();
     }
@@ -163,10 +164,12 @@ function onSidebarMessage(msg: FromSidebar) {
       lastAccept = null;
       return update();
     }
-    case 'reject':
-      suggestions = suggestions.filter(x => !(x.playerId === msg.playerId && x.clueId === msg.clueId));
-      sendToGuests({ t: 'rejected', clueId: msg.clueId }, msg.playerId);
+    case 'reject': {
+      const inGroup = (x: Suggestion) => x.clueId === msg.clueId && sameLetters(x.letters, msg.letters);
+      for (const x of suggestions.filter(inGroup)) sendToGuests({ t: 'rejected', clueId: msg.clueId }, x.playerId);
+      suggestions = suggestions.filter(x => !inGroup(x));
       return update();
+    }
   }
 }
 

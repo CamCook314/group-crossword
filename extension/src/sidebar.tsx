@@ -2,8 +2,7 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { ColorPicker } from '../../shared/ColorPicker';
-import type { Suggestion } from '../../shared/protocol';
-import { clashes } from '../../shared/suggestions';
+import { AGREED_COLOR, clashes, groupSuggestions } from '../../shared/suggestions';
 import type { FromSidebar, SidebarStatus } from './messages';
 
 let port: browser.runtime.Port;
@@ -79,23 +78,32 @@ function App() {
           <h2>Suggestions</h2>
           {undo && (
             <button class="secondary undo" onClick={() => send({ type: 'undo' })}>
-              Undo accept: {state.players.find(p => p.id === undo.playerId)?.name ?? 'Someone'} · {undo.clueId}
+              Undo accept: {names(undo.playerIds)} · {undo.clueId}
             </button>
           )}
           {state.suggestions.length === 0 && <p class="hint">None yet.</p>}
           {puzzle &&
-            state.suggestions.map(s => {
-              const clue = puzzle.clues.find(c => c.id === s.clueId);
-              const player = state.players.find(p => p.id === s.playerId);
-              const clash = clashes(puzzle, state.letters, s);
+            groupSuggestions(state.suggestions).map(g => {
+              const clue = puzzle.clues.find(c => c.id === g.clueId);
+              const players = g.playerIds.map(id => state.players.find(p => p.id === id));
+              const clash = clashes(puzzle, state.letters, g);
+              const agreed = players.length > 1;
               return (
-                <div class="suggestion" key={s.playerId + s.clueId} style={{ borderColor: player?.color }}>
+                <div
+                  class={agreed ? 'suggestion agreed' : 'suggestion'}
+                  key={g.clueId + g.letters.join()}
+                  style={{ borderColor: agreed ? AGREED_COLOR : players[0]?.color }}
+                >
                   <div class="who">
-                    <span class="dot" style={{ background: player?.color }} /> {player?.name ?? 'Someone'} · <b>{s.clueId}</b>
+                    {players.map(p => (
+                      <span class="dot" style={{ background: p?.color }} />
+                    ))}{' '}
+                    {names(g.playerIds)} · <b>{g.clueId}</b>
+                    {agreed && <span class="agree-count">{players.length} agree</span>}
                   </div>
                   <div class="clue">{clue?.text}</div>
                   <div class="letters">
-                    {s.letters.map((l, i) => {
+                    {g.letters.map((l, i) => {
                       const existing = clue ? state.letters[clue.cells[i]] : '';
                       return (
                         <span class={clash[i] ? 'clash' : l ? '' : 'blank'} title={clash[i] ? `Replaces ${existing}` : undefined}>
@@ -105,8 +113,10 @@ function App() {
                     })}
                   </div>
                   <div class="actions">
-                    <button onClick={() => decide('accept', s)}>Accept</button>
-                    <button class="secondary" onClick={() => decide('reject', s)}>Reject</button>
+                    <button onClick={() => send({ type: 'accept', clueId: g.clueId, letters: g.letters })}>Accept</button>
+                    <button class="secondary" onClick={() => send({ type: 'reject', clueId: g.clueId, letters: g.letters })}>
+                      Reject
+                    </button>
                   </div>
                 </div>
               );
@@ -115,8 +125,10 @@ function App() {
       )}
     </main>
   );
-}
 
-const decide = (type: 'accept' | 'reject', s: Suggestion) => send({ type, playerId: s.playerId, clueId: s.clueId });
+  function names(ids: string[]) {
+    return ids.map(id => state.players.find(p => p.id === id)?.name ?? 'Someone').join(' + ');
+  }
+}
 
 render(<App />, document.getElementById('app')!);

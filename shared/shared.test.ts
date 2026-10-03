@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { hexToHsv, hsvToHex, textOn } from './color';
 import { COLORS, parseGuestMessage, type Player, type Suggestion } from './protocol';
 import { buildPuzzle, clueAt, layoutEntries } from './puzzle';
-import { cellsToApply, clashes, cornerMarks, pruneSuggestions, upsertSuggestion } from './suggestions';
+import { AGREED_COLOR, cellsToApply, clashes, cornerMarks, groupSuggestions, pruneSuggestions, upsertSuggestion } from './suggestions';
 
 // 3x3 ring:   1 . 2
 //             . # .
@@ -85,12 +85,34 @@ describe('suggestions', () => {
     expect(again.get(0)!.map(m => m.text)).toEqual(['Z', 'Y']);
   });
 
+  it('shows a letter several players agree on once, in grey, first', () => {
+    const players = [player('a', '#aaaaaa'), player('b', '#bbbbbb'), player('c', '#cccccc')];
+    // a suggests X first, then b and c both suggest Y (b via another clue through the same square).
+    const marks = cornerMarks(puzzle, [s('a', '1A', ['X', 'Q', '']), s('b', '1D', ['Y', '', '']), s('c', '1A', ['Y', 'Q', ''])], players);
+    expect(marks.get(0)).toEqual([{ text: 'Y', color: AGREED_COLOR }, { text: 'X', color: '#aaaaaa' }]);
+    expect(marks.get(1)).toEqual([{ text: 'Q', color: AGREED_COLOR }]);
+  });
+
+  it('combines identical suggestions for the host, most-agreed first', () => {
+    const groups = groupSuggestions([
+      s('a', '1D', ['T', '', '']),
+      s('b', '1A', ['C', 'A', 'T']),
+      s('c', '1A', ['C', 'A', '']), // only partly the same: stays separate
+      s('d', '1A', ['C', 'A', 'T']),
+    ]);
+    expect(groups).toEqual([
+      { clueId: '1A', letters: ['C', 'A', 'T'], playerIds: ['b', 'd'] },
+      { clueId: '1D', letters: ['T', '', ''], playerIds: ['a'] },
+      { clueId: '1A', letters: ['C', 'A', ''], playerIds: ['c'] },
+    ]);
+  });
+
   it('shows four corner letters, then +N', () => {
     const players = ['a', 'b', 'c', 'd', 'e'].map(id => player(id));
-    const four = cornerMarks(puzzle, ['a', 'b', 'c', 'd'].map(id => s(id, '1A', ['Q', '', ''])), players);
-    expect(four.get(0)!.map(m => m.text)).toEqual(['Q', 'Q', 'Q', 'Q']);
-    const five = cornerMarks(puzzle, ['a', 'b', 'c', 'd', 'e'].map(id => s(id, '1A', ['Q', '', ''])), players);
-    expect(five.get(0)!.map(m => m.text)).toEqual(['Q', 'Q', 'Q', '+2']);
+    const four = cornerMarks(puzzle, ['a', 'b', 'c', 'd'].map(id => s(id, '1A', [id.toUpperCase(), '', ''])), players);
+    expect(four.get(0)!.map(m => m.text)).toEqual(['A', 'B', 'C', 'D']);
+    const five = cornerMarks(puzzle, ['a', 'b', 'c', 'd', 'e'].map(id => s(id, '1A', [id.toUpperCase(), '', ''])), players);
+    expect(five.get(0)!.map(m => m.text)).toEqual(['A', 'B', 'C', '+2']);
   });
 });
 

@@ -32,14 +32,15 @@ To try it without signing, `npm run firefox` opens a separate Firefox with the e
    (a preset, or the rainbow swatch for a colour wheel).
 3. **Start session**, then **Copy** the link and send it to your friends.
 4. Suggestions appear in the sidebar, and faintly in the corners of your real grid. **Accept** types them in; **Reject** tells the guest;
-   **Undo accept** puts back whatever the last accepted suggestion changed.
+   **Undo accept** puts back whatever the last accepted suggestion changed. Identical suggestions from several people combine
+   into one card at the top of the list.
 
 ## Guests
 
 Open the link and pick a name and colour (the rainbow swatch opens a colour wheel). Click a clue or square and type to draft
 letters, press **Enter** to suggest them (partial answers are fine), **Esc** to clear. Suggestions show in the corners of the
-squares, filled top-right, top-left, bottom-left, bottom-right in the order they were made, and each player's initial sits next
-to the clue they're on.
+squares, filled top-right, top-left, bottom-left, bottom-right in the order they were made; a letter several people agree on
+shows once, in grey, top-right. Each player's initial sits next to the clue they're on.
 
 ## Development
 

@@ -166,6 +166,18 @@ try {
         site.cells, site.letter, cells,
       );
     };
+    /** With SHOTS=1, saves the host's overlay, Sam's view and the sidebar. */
+    const shots = async label => {
+      if (!process.env.SHOTS) return;
+      await onSite();
+      await host.switchTo().defaultContent();
+      const frame = (await host.findElements(By.css('iframe[src*="amuselabs"]')))[0];
+      writeFileSync(`e2e/.artifacts/${name}${label}-host.png`, await (frame ?? host).takeScreenshot(true), 'base64');
+      writeFileSync(`e2e/.artifacts/${name}${label}-guest.png`, await sam.takeScreenshot(), 'base64');
+      await sidebar();
+      await host.manage().window().setRect({ width: 360, height: 900 });
+      writeFileSync(`e2e/.artifacts/${name}${label}-sidebar.png`, await host.takeScreenshot(), 'base64');
+    };
     const siteCellCount = await host.executeScript(`return document.querySelectorAll(arguments[0]).length`, site.cells);
     await until('guests have the same grid', () => both(async g => (await g.findElements(By.css('.grid .cell'))).length === siteCellCount), 30000);
     const clueCount = (await sam.findElements(By.css('.clue-list li'))).length;
@@ -218,25 +230,49 @@ try {
     const [first, second] = overlay.marks.filter(m => m.cell === 0);
     if (first.text !== 'W' || second.text !== 'A' || !(second.left < first.left)) throw new Error('overlay corners in the wrong order');
     if (second.left < overlay.numberRight) throw new Error('top-left letter overlaps the clue number');
-    if (process.env.SHOTS) {
-      await host.switchTo().defaultContent();
-      const frame = (await host.findElements(By.css('iframe[src*="amuselabs"]')))[0];
-      writeFileSync(`e2e/.artifacts/${name}-host.png`, await (frame ?? host).takeScreenshot(true), 'base64');
-      writeFileSync(`e2e/.artifacts/${name}-guest.png`, await sam.takeScreenshot(), 'base64');
-      await sidebar();
-      await host.manage().window().setRect({ width: 360, height: 900 });
-      writeFileSync(`e2e/.artifacts/${name}-sidebar.png`, await host.takeScreenshot(), 'base64');
-    }
+    await shots('');
     step(`overlay: ${overlay.marks.map(m => m.text).join(',')} inside their squares; W top-right, A top-left after the number; badges for ${overlay.badges.join(' and ')}`);
 
-    // Host accepts Sam's (listed first), then undoes it.
+    // Ana makes the same 1A suggestion as Sam: the letters combine into one grey letter each, top-right,
+    // and the host sees one combined card at the top of the list (above Ana's earlier 1D).
+    await ana.findElement(By.css('li[data-clue="1A"]')).click();
+    await ana.actions().sendKeys(Key.ARROW_LEFT, 'wm', Key.ENTER).perform();
+    const GREY = 'rgb(138, 138, 138)';
+    await until('agreed letters shown once, in grey, top-right', () =>
+      both(async g => {
+        const cell0 = await g.findElements(By.css('.cell[data-cell="0"] .mark'));
+        const m0 = await g.findElement(By.css('.cell[data-cell="0"] .mark.m0'));
+        return cell0.length === 1 && (await m0.getText()) === 'W' && (await m0.getCssValue('color')) === GREY;
+      }),
+    );
+    await onSite();
+    const agreedOverlay = await until('overlay combines the agreed letters', async () => {
+      const r = await host.executeScript(
+        `return [...document.getElementById('group-crossword-overlay').shadowRoot.querySelectorAll('.mark')]
+           .map(m => ({ text: m.textContent, cell: Number(m.dataset.cell), color: getComputedStyle(m).color }));`,
+      );
+      const cell0 = r.filter(m => m.cell === 0);
+      return cell0.length === 1 && cell0[0].text === 'W' && cell0[0].color === GREY && r;
+    });
     await sidebar();
+    const cards = await until('one combined card on top', async () => {
+      const c = await host.findElements(By.css('.suggestion .who'));
+      return c.length === 2 && (await c[0].getText()).includes('Sam + Ana') && c;
+    });
+    await shots('-agreed');
+    await sidebar();
+    step(`Ana suggested the same 1A: grey W and M on the guests and the overlay (${agreedOverlay.length} marks), and "${(await cards[0].getText()).replace(/\s+/g, ' ')}" tops the sidebar`);
+
+    // Host accepts the combined card, then undoes it.
     await (await host.findElements(By.xpath("//button[normalize-space(.)='Accept']")))[0].click();
     await until('site has WM', async () => (await siteLetters(0, 1)) === 'WM');
     await until('guests see WM', () => both(async g => (await letter(g, 0)) + (await letter(g, 1)) === 'WM'));
-    step("host accepted Sam's 1A: WM typed into the site and synced to both guests");
     await sidebar();
-    await (await until('Undo button', () => host.findElement(By.css('button.undo')))).click();
+    await until('both 1A suggestions cleared', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
+    step('host accepted the combined 1A: WM typed into the site, synced to both guests, and both suggestions cleared');
+    const undoButton = await until('Undo button', () => host.findElement(By.css('button.undo')));
+    if (!(await undoButton.getText()).includes('Sam + Ana · 1A')) throw new Error(`undo label: ${await undoButton.getText()}`);
+    await undoButton.click();
     await until('site back to Q', async () => (await siteLetters(0, 1)) === 'Q');
     await until('guests see Q again', () => both(async g => (await letter(g, 0)) === 'Q' && (await letter(g, 1)) === ''));
     await sidebar();
@@ -249,6 +285,25 @@ try {
     await until('marks gone', () => both(async g => (await marks(g)) === 0));
     if ((await siteLetters(0, 1)) !== 'Q') throw new Error('rejected suggestion changed the site');
     step("host rejected Ana's 1D: she was told and nothing was typed");
+
+    // Sam suggests 1D; the host types those same letters on the site, so the suggestion clears by itself.
+    const cols = Math.sqrt(siteCellCount);
+    if (!Number.isInteger(cols)) throw new Error('test assumes a square grid');
+    await sam.findElement(By.css('li[data-clue="1D"]')).click();
+    await sam.actions().sendKeys(Key.ARROW_UP, 'zx', Key.ENTER).perform();
+    await sidebar();
+    await until('sidebar shows Sam\'s 1D', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
+    await onSite();
+    for (const [cell, key] of [[0, 'z'], [cols, 'x']]) {
+      await (await host.findElements(By.css(site.cells)))[cell].click();
+      await host.actions().sendKeys(key).perform();
+    }
+    await until('guests see ZX as real letters, marks gone', () =>
+      both(async g => (await letter(g, 0)) + (await letter(g, cols)) === 'ZX' && (await marks(g)) === 0),
+    );
+    await sidebar();
+    await until('sidebar queue empty', async () => (await host.findElements(By.css('.suggestion'))).length === 0);
+    step("host typed Sam's suggested 1D letters on the site: the suggestion cleared by itself");
   }
   console.log('\nAll end-to-end checks passed.');
 } catch (e) {

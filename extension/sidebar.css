@@ -159,3 +159,13 @@ button.secondary {
 .undo {
   margin-bottom: 4px;
 }
+.suggestion .dot + .dot {
+  margin-left: -3px;
+}
+.agree-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}

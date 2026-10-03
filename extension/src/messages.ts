@@ -25,12 +25,13 @@ export interface SidebarStatus {
   host: HostProfile;
   session: { link: string; status: string } | null;
   /** The last accepted suggestion, while it can still be undone. */
-  undo: { playerId: string; clueId: string } | null;
+  undo: { playerIds: string[]; clueId: string } | null;
 }
 
 export type FromSidebar =
   | { type: 'start' }
   | { type: 'stop' }
-  | { type: 'accept' | 'reject'; playerId: string; clueId: string }
+  /** A suggestion card: everyone who suggested these exact letters for this clue. */
+  | { type: 'accept' | 'reject'; clueId: string; letters: string[] }
   | { type: 'undo' }
   | { type: 'host'; host: HostProfile };

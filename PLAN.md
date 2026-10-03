@@ -49,6 +49,8 @@ pick clues, and submit suggestions that the host accepts or rejects.
   cell's corners in the order they were suggested: top-right, top-left (just after the clue number), bottom-left,
   bottom-right. A new suggestion never moves existing ones. Up to 4 per cell; beyond that, "+N". On the host's overlay
   they're anchored to the cell's own edges, so wide letters can't spill into the next square.
+- A letter two or more players suggest for the same square is shown once, in grey, top-right (most-agreed first),
+  ahead of single-player letters. This works square by square, so single letters and whole words both combine.
 
 **Guests** (shared view: grid + Across/Down lists, like the sites themselves)
 - Type letters into a clue's cells as a private draft. Partial answers are fine.
@@ -61,6 +63,9 @@ pick clues, and submit suggestions that the host accepts or rejects.
 - The host's own current clue (read from the site's highlight) is broadcast as the host's badge.
 - Letters the host types on the site are real letters and sync to everyone. The host doesn't need to suggest.
 - Sidebar lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
+  Identical suggestions (same clue, same letters) combine into one card ("Sam + Ana", "2 agree"), and cards with more
+  agreement go to the top. Accept and Reject act on the whole card; Reject tells everyone on it. Suggestions that only
+  partly match stay separate cards (their shared letters still show grey on the grid).
 - Accept → extension types the letters into the site (click each non-blank cell, type its letter) → site updates → everyone updates.
 - Reject → suggestion removed, suggester notified.
 - Undo accept → puts back the squares the last accepted suggestion changed (only those still holding what it typed,

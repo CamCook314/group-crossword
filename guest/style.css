@@ -111,59 +111,6 @@ input {
   border-radius: 6px;
 }
 
-/* Solver */
-.solver {
-  --size: min(560px, calc(100vw - 32px), calc(100vh - 150px));
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 12px 16px;
-}
-.clue-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: color-mix(in srgb, var(--me) 18%, var(--surface));
-  border-radius: 6px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-  min-height: 48px;
-}
-.clue-bar-text {
-  flex: 1;
-  font-size: 17px;
-}
-.main {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-  align-items: flex-start;
-}
-.letter.draft {
-  color: var(--me);
-  font-style: italic;
-}
-.mark {
-  font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  font-size: 0.28em;
-  font-weight: 700;
-  line-height: 1;
-  opacity: 0.85;
-}
-.mark.m0 {
-  position: absolute;
-  top: 0.12em;
-  right: 0.15em;
-}
-.mark.m2 {
-  position: absolute;
-  bottom: 0.12em;
-  left: 0.15em;
-}
-.mark.m3 {
-  position: absolute;
-  bottom: 0.12em;
-  right: 0.15em;
-}
 /* Footer */
 .footer {
   margin-top: 16px;
@@ -192,10 +139,6 @@ input {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-}
-.help {
-  margin: 0;
-  font-size: 13px;
 }
 
 /* Race */
@@ -306,4 +249,49 @@ input {
 }
 .boards figcaption {
   margin-top: 6px;
+}
+
+/* Suggestions for the selected answer, with 👍 Agree */
+.agree-strip {
+  display: grid;
+  gap: 4px;
+  margin: -4px 0 12px;
+}
+.agree-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.agree-item .dot + .dot {
+  margin-left: -6px;
+}
+.agree-item .letters {
+  display: flex;
+  gap: 2px;
+}
+.agree-item .letters span {
+  width: 20px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.agree-item .letters .blank {
+  color: var(--muted);
+  font-weight: 400;
+}
+.agree-item .hint,
+.agree-item button {
+  margin-left: auto;
+}
+.agree-item button {
+  padding: 2px 10px;
+}
+.footer > button {
+  padding: 2px 12px;
 }

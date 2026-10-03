@@ -103,3 +103,44 @@ export function ordinal(n: number): string {
   const teen = n % 100 >= 11 && n % 100 <= 13;
   return n + (teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'));
 }
+
+export interface Standing {
+  id: string;
+  place: number;
+  /** Time including penalties, if they finished. */
+  timeMs: number | null;
+  /** When they finished, ms after the start (without penalties). */
+  finishedMs: number | null;
+  penaltyMs: number;
+  correct: number;
+  total: number;
+}
+
+/**
+ * Final standings: everyone who finished, by time (penalties included); then everyone who didn't, by squares correct
+ * (fewer wrong letters breaks a tie). Equal results share a place.
+ */
+export function standings(racers: Map<string, Racer>, solutions: Solutions, startedAt: number): Standing[] {
+  const rows = [...racers].map(([id, r]) => {
+    const p = progress(solutions, r.letters);
+    return {
+      id,
+      timeMs: raceTime(r, startedAt),
+      finishedMs: r.finishedAt === null ? null : r.finishedAt - startedAt,
+      penaltyMs: r.penaltyMs,
+      correct: p.correct,
+      total: p.total,
+      wrong: p.filled - p.correct,
+    };
+  });
+  const order = (a: (typeof rows)[number], b: (typeof rows)[number]) =>
+    a.timeMs !== null && b.timeMs !== null
+      ? a.timeMs - b.timeMs
+      : a.timeMs !== null
+        ? -1
+        : b.timeMs !== null
+          ? 1
+          : b.correct - a.correct || a.wrong - b.wrong;
+  rows.sort(order);
+  return rows.map(({ wrong, ...row }, i) => ({ ...row, place: rows.findIndex(other => order(other, rows[i]) === 0) + 1 }));
+}

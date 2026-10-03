@@ -2,7 +2,8 @@
 
 An alternative game mode. The host opens a crossword as usual and creates a **lobby**; friends join from a link;
 the host starts a countdown and everyone races to finish the same puzzle, each on their own private copy. The host
-watches everyone's boards live on a full-page race view, and can also race in a separate window.
+watches everyone's boards live on a full-page race view (the host's full view in Race mode), and can also race in a
+separate window.
 
 This builds on the co-op app described in [PLAN.md](PLAN.md). The parts that matter here are summarised below so this
 file stands on its own.
@@ -16,7 +17,7 @@ file stands on its own.
 | Host's views | A full-page **race view** (extension page) with every racer's live board, **% correct**, time and place, plus the lobby controls. The host's own racing window is a normal racer view. |
 | What racers see | Their own grid and timer, and the others' **% filled** (lobby setting, on by default). Never % correct: that would work as an answer checker. |
 | Full but wrong grid | "Not quite — keep going", no hint where. Lobby setting: optional time penalty with a cooldown (see Lobby settings). |
-| After the race | Everyone sees a correct solution — the winner's board, or the answer grid if nobody finished — and then every player's final board. |
+| After the race | Everyone sees the standings (finishers by time, then everyone else by squares correct), a correct solution — the winner's board, or the answer grid if nobody finished — a replay of the race, and every player's final board. |
 | Late joiners | Allowed: they start with an empty grid and the race clock already running. |
 | Timing | One clock, the host's. |
 
@@ -106,12 +107,12 @@ host the answers.
 
 ## The host
 
-- **Sidebar, Race mode:** a switch between Co-op and Race, a button to open the race view, and a one-line status.
-- **Race view** (a full-page extension page, opened from the sidebar in its own tab or window):
+- **Sidebar, Race mode:** a switch between Co-op and Race, an **Open full view** button, and a one-line status.
+- **Race view** (the host's full view, a full-page extension page opened from the sidebar, in Race mode):
   - *Lobby:* link + Copy, settings, players, answer status, **Start**.
   - *Racing:* one live board per racer (their letters, wrong ones marked), with % correct, % filled, time and place;
     **End race**.
-  - *Results:* places and times, the solution board, every racer's final board.
+  - *Results:* the standings, the solution board, the replay, every racer's final board.
   - It's the host's own page inside the extension, so it gets everything straight from the background page and needs
     no network connection of its own.
 - **Play:** opens the race page in a new window, joined as the host (own client id; join form prefilled with the
@@ -128,8 +129,9 @@ host the answers.
   your own grid: no drafts, no suggestions, no corner letters. A timer, and the others' % filled if the host allows it.
   "Not quite" (and any penalty, with its cooldown) when a full grid is wrong.
 - **Finished:** your time and place, and how others are doing.
-- **Results:** places and times; the solution (the winner's board, or the answer grid if nobody finished); then every
-  player's final board.
+- **Results:** the standings: everyone who finished by time (penalties included), then everyone else by squares
+  correct, then fewest wrong. The solution (the winner's board, or the answer grid if nobody finished); a replay of the
+  race, every board side by side with a slider; then every player's final board.
 
 ## Protocol additions
 
@@ -138,7 +140,8 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 - Room state gains `mode: 'coop' | 'race'` and a `race` section: `phase` (`lobby` → `countdown` → `racing` → `done`),
   `settings`, and per racer `filled`, `total`, `finishedMs`, `penaltyMs`, `cooldownUntil`, `place`. Racers never get `correct`.
 - Host → racer: `race-start` (puzzle without answers + ms until go; also sent to late joiners), `not-quite`,
-  `race-results` (places, times, the solution board, every racer's final letters).
+  `race-results` (standings, the solution board, every racer's final letters, and every change to each racer's grid
+  for the replay).
 - Racer → host: `race-letters` (their whole grid). Validated like the other guest messages.
 - Background → race view (extension messaging, not the network): everything, including each racer's letters and
   per-square status.
@@ -156,7 +159,8 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 - The grid and clue lists in [guest/src/Board.tsx](guest/src/Board.tsx) move into `shared/` (with their CSS) so the
   guest page and the race view both use them, like [shared/ColorPicker.tsx](shared/ColorPicker.tsx). Co-op and race
   differ only in what typing does; the race view shows small read-only boards.
-- New extension page `race.html` / `race.tsx` for the race view; the sidebar gets the Co-op / Race switch.
+- The race view is [extension/src/RaceView.tsx](extension/src/RaceView.tsx), the Race half of the host's full view
+  ([extension/src/host.tsx](extension/src/host.tsx)); the sidebar gets the Co-op / Race switch.
 
 ## Build steps
 
@@ -170,6 +174,7 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 | 5. Host plays | Play button and window | The host can race alongside guests | ✅ (the Play window was checked in the e2e test; racing in it is the same as any racer) |
 | 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty and cooldown, late join, rejoin, places, results | `npm run e2e` passes | ✅ `npm run e2e:race`, both sites, 2026-10-03. Ending by itself when everyone has finished is unit tested only |
 | 7. Ship | Docs, version bump, merge to `main`, deploy, sign | Used in a real race | ✅ merged to `main` and deployed 2026-10-03 (checked that the installed 0.3.0 still works with the new guest page). ⏳ sign and install 0.4.0, then a real race |
+| 8. Standings + replay | Rank everyone who didn't finish; replay the race | `npm run e2e` passes | ✅ both sites, 2026-10-03 |
 
 ## Branching
 

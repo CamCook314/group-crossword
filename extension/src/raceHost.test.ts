@@ -89,8 +89,18 @@ describe('RaceHost', () => {
     expect(race.stateForRacers(12_000)).toMatchObject({
       phase: 'done',
       clockMs: 9000,
-      results: { winner: 'ana', solution: grid('CATO#OWET'), boards: { sam: grid('CA.......') } },
+      results: { winner: 'ana', solution: grid('CATO#OWET'), boards: { sam: grid('CA.......') }, durationMs: 9000 },
     });
+    // Ana first, then Sam ranked on his two right squares.
+    expect(race.results!.standings.map(s => [s.id, s.place, s.correct])).toEqual([
+      ['ana', 1, 8],
+      ['sam', 2, 2],
+    ]);
+    // The replay has each racer's changes, in order.
+    expect(race.results!.replay).toEqual([
+      { at: 6000, board: 'ana', by: 'ana', cells: [0, 1, 2, 3, 5, 6, 7, 8].map(c => [c, grid('CATO#OWET')[c]]) },
+      { at: 6000, board: 'sam', by: 'sam', cells: [[0, 'C'], [1, 'A']] },
+    ]);
 
     race.reset();
     startRace();

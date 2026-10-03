@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, formatTime, isFull, ordinal, isSolved, newRacer, places, progress, raceTime, squareStatus, updateLetters, type Racer } from './race';
+import { DEFAULT_SETTINGS, formatTime, isFull, ordinal, standings, isSolved, newRacer, places, progress, raceTime, squareStatus, updateLetters, type Racer } from './race';
 
 // 3x3 ring (CAT / O#O / WET), with an alternate solution that has B for the T in the top-right corner.
 const main = ['C', 'A', 'T', 'O', '', 'O', 'W', 'E', 'T'];
@@ -84,5 +84,25 @@ describe('formatting times', () => {
     expect(formatTime(245_999)).toBe('4:05');
     expect(formatTime(3_723_000)).toBe('1:02:03');
     expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st']);
+  });
+});
+
+describe('final standings', () => {
+  it('ranks finishers by time, then everyone else by squares correct', () => {
+    const racer = (letters: string, finishedAt: number | null = null, penaltyMs = 0): Racer => ({ ...newRacer(9), letters: grid(letters), finishedAt, penaltyMs });
+    const racers = new Map([
+      ['almost', racer('CATO#OWE.')], // 7 right
+      ['fast', racer('CATO#OWET', 50_000)],
+      ['penalised', racer('CATO#OWET', 40_000, 30_000)], // 70 s
+      ['sloppy', racer('CATO#OWXX')], // 6 right, 2 wrong
+      ['careful', racer('CATO#OW..')], // 6 right, none wrong
+    ]);
+    expect(standings(racers, solutions, 0).map(s => [s.id, s.place, s.timeMs, s.correct])).toEqual([
+      ['fast', 1, 50_000, 8],
+      ['penalised', 2, 70_000, 8],
+      ['almost', 3, null, 7],
+      ['careful', 4, null, 6],
+      ['sloppy', 5, null, 6],
+    ]);
   });
 });

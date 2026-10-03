@@ -1,10 +1,21 @@
-// The host's hub: holds the session, talks to the guests over WebRTC, to the crossword page, the sidebar and the race view.
+// The host's hub: holds the session, talks to the guests over WebRTC, to the crossword page, the sidebar and the
+// full-page host view.
 import { Peer, type DataConnection } from 'peerjs';
-import { COLORS, GUEST_URL, parseGuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../shared/protocol';
-import { puzzleKey } from '../../shared/puzzle';
-import { cellsToApply, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
 import type { Solutions } from '../../shared/answers';
-import type { FromAdapter, FromRaceView, FromSidebar, HostProfile, Mode, PageSnapshot, RaceViewStatus, SidebarStatus, ToAdapter } from './messages';
+import {
+  COLORS,
+  GUEST_URL,
+  parseGuestMessage,
+  type AcceptMode,
+  type HostMessage,
+  type Player,
+  type RoomState,
+  type Suggestion,
+} from '../../shared/protocol';
+import { puzzleKey } from '../../shared/puzzle';
+import type { ReplayEvent } from '../../shared/replay';
+import { AGREED_BY, cellsToApply, groupSuggestions, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
+import { type Command, type FromAdapter, type FullViewStatus, type HostProfile, type Mode, type PageSnapshot, type RaceViewStatus, type SidebarStatus, type ToAdapter } from './messages';
 import { RaceHost } from './raceHost';
 
 const HOST_ID = 'host';
@@ -18,12 +29,13 @@ interface Session {
 }
 
 let host: HostProfile = { name: 'Host', color: COLORS[0] };
+let acceptMode: AcceptMode = 'manual';
 let page: PageSnapshot | null = null;
 /** The answers the page reported, for the puzzle with this key. Kept here only: never part of the room state. */
 let answers: { puzzleKey: string; solutions: Solutions | null } | null = null;
 let adapter: browser.runtime.Port | null = null;
 const sidebars = new Set<browser.runtime.Port>();
-const raceViews = new Set<browser.runtime.Port>();
+const fullViews = new Set<browser.runtime.Port>();
 let mode: Mode = 'coop';
 const race = new RaceHost(() => update());
 const guests = new Map<string, Player>();
@@ -31,9 +43,16 @@ let suggestions: Suggestion[] = [];
 let session: Session | null = null;
 /** What the last accepted suggestion changed on the site, so it can be undone. */
 let lastAccept: { playerIds: string[]; clueId: string; changes: { cell: number; before: string; after: string }[] } | null = null;
+/** Suggestion cards already put in automatically (clue + letters), so they're never typed twice. */
+let autoAccepted = new Set<string>();
+/** The co-op solve so far, for the replay: every letter change on the site and who made it. */
+let history: { startedAt: number | null; events: ReplayEvent[] } = { startedAt: null, events: [] };
+/** Letters on their way into the site, and whose they are, so the replay can credit them. */
+const typing = new Map<number, { letter: string; by: string }>();
 
-browser.storage.local.get('host').then(stored => {
+browser.storage.local.get(['host', 'acceptMode']).then(stored => {
   if (stored.host) host = stored.host as HostProfile;
+  if (stored.acceptMode) acceptMode = stored.acceptMode as AcceptMode;
   update();
 });
 
@@ -41,6 +60,7 @@ function roomState(): RoomState {
   if (mode === 'race') {
     return {
       mode,
+      acceptMode: 'manual',
       puzzle: race.puzzle, // only set once the countdown starts
       letters: [],
       players: [...guests.values()],
@@ -50,6 +70,7 @@ function roomState(): RoomState {
   }
   return {
     mode,
+    acceptMode,
     puzzle: page?.puzzle ?? null,
     letters: page?.letters ?? [],
     players: [{ id: HOST_ID, ...host, clueId: page?.clueId ?? null, host: true, online: true }, ...guests.values()],
@@ -60,10 +81,12 @@ function roomState(): RoomState {
 
 const onlineIds = () => [...guests.values()].filter(p => p.online).map(p => p.id);
 const link = () => session && { link: GUEST_URL + '#' + session.roomId, status: session.status };
+const replay = () => ({ events: history.events, durationMs: history.events.at(-1)?.at ?? 0 });
 
 /** Pushes the current state everywhere. Called after every change. */
 function update() {
   suggestions = pruneSuggestions(suggestions, page?.puzzle ?? null, page?.letters ?? []);
+  autoAccept();
   const state = roomState();
   const pagePuzzle = page && { title: page.puzzle.title, rows: page.puzzle.rows, cols: page.puzzle.cols };
   const status: SidebarStatus = {
@@ -77,8 +100,8 @@ function update() {
     answers: answerStatus(),
   };
   for (const port of sidebars) port.postMessage(status);
-  if (raceViews.size) {
-    const view: RaceViewStatus = {
+  if (fullViews.size) {
+    const raceView: RaceViewStatus = {
       host,
       session: link(),
       pagePuzzle,
@@ -92,10 +115,11 @@ function update() {
       racers: race.details(),
       results: race.results,
     };
-    for (const port of raceViews) port.postMessage(view);
+    const full: FullViewStatus = { sidebar: status, race: raceView, replay: replay() };
+    for (const port of fullViews) port.postMessage(full);
   }
-  // The overlay on the real crossword is for co-op only.
-  adapter?.postMessage({ type: 'overlay', state: session && mode === 'coop' ? state : null } satisfies ToAdapter);
+  // The overlay on the real crossword is for co-op only (word breaks show even before a session starts).
+  adapter?.postMessage({ type: 'overlay', state: mode === 'coop' ? state : null } satisfies ToAdapter);
   if (session) sendToGuests({ t: 'state', state });
 }
 
@@ -109,6 +133,58 @@ function sendToGuests(msg: HostMessage, onlyClientId?: string) {
   for (const [conn, clientId] of session?.conns ?? []) {
     if (conn.open && clientId && (!onlyClientId || clientId === onlyClientId)) conn.send(msg);
   }
+}
+
+/** Types letters into the real crossword ('' clears), crediting them to `by` in the replay. */
+function applyLetters(cells: { cell: number; letter: string }[], by: string) {
+  if (!adapter || !cells.length) return;
+  for (const { cell, letter } of cells) typing.set(cell, { letter, by });
+  adapter.postMessage({ type: 'apply', cells } satisfies ToAdapter);
+}
+
+/** Puts a suggestion card (everyone who suggested these letters for this clue) onto the crossword. */
+function acceptGroup(clueId: string, letters: string[]): boolean {
+  const group = suggestions.filter(x => x.clueId === clueId && sameLetters(x.letters, letters));
+  if (!group.length || !page || !adapter) return false;
+  const current = page.letters;
+  const changes = cellsToApply(page.puzzle, group[0])
+    .map(({ cell, letter }) => ({ cell, before: current[cell], after: letter }))
+    .filter(c => c.before !== c.after);
+  lastAccept = changes.length ? { playerIds: group.map(x => x.playerId), clueId, changes } : null;
+  // The suggestions disappear by themselves once their letters show up on the site.
+  applyLetters(
+    changes.map(c => ({ cell: c.cell, letter: c.after })),
+    group.length > 1 ? AGREED_BY : group[0].playerId,
+  );
+  return true;
+}
+
+/** Accepts cards automatically when the host has chosen to: once two or more agree, or always (trusted). */
+function autoAccept() {
+  if (mode !== 'coop' || acceptMode === 'manual') return;
+  const groups = groupSuggestions(suggestions);
+  const key = (g: { clueId: string; letters: string[] }) => `${g.clueId}:${g.letters.join(',')}`;
+  autoAccepted = new Set([...autoAccepted].filter(k => groups.some(g => key(g) === k)));
+  for (const g of groups) {
+    if (autoAccepted.has(key(g)) || (acceptMode === 'agreed' && g.playerIds.length < 2)) continue;
+    if (acceptGroup(g.clueId, g.letters)) autoAccepted.add(key(g));
+  }
+}
+
+/** Records the letters that changed on the site for the co-op replay, crediting whoever they were typed for. */
+function recordChanges(before: string[], after: string[]) {
+  const now = Date.now();
+  const byWho = new Map<string, [number, string][]>();
+  after.forEach((letter, cell) => {
+    if (letter === before[cell]) return;
+    const pending = typing.get(cell);
+    const by = pending && pending.letter === letter ? pending.by : HOST_ID;
+    typing.delete(cell);
+    byWho.set(by, [...(byWho.get(by) ?? []), [cell, letter]]);
+  });
+  if (!byWho.size) return;
+  history.startedAt ??= now;
+  for (const [by, cells] of byWho) history.events.push({ at: now - history.startedAt, board: 'shared', by, cells });
 }
 
 function randomRoomId() {
@@ -184,6 +260,7 @@ function onGuestMessage(s: Session, conn: DataConnection, data: unknown) {
   const clientId = s.conns.get(conn);
   const player = clientId ? guests.get(clientId) : undefined;
   if (!player) return;
+  if (msg.t === 'get-replay') return conn.send({ t: 'replay', ...replay() } satisfies HostMessage);
   if (mode === 'coop') {
     if (msg.t === 'select') player.clueId = msg.clueId;
     if (msg.t === 'suggest') suggestions = upsertSuggestion(suggestions, { playerId: player.id, clueId: msg.clueId, letters: msg.letters });
@@ -197,7 +274,9 @@ function onGuestMessage(s: Session, conn: DataConnection, data: unknown) {
   update();
 }
 
-function onSidebarMessage(msg: FromSidebar) {
+/** Commands from the sidebar and the full-page host view. */
+function onCommand(msg: Command) {
+  const now = Date.now();
   switch (msg.type) {
     case 'start':
       return startSession();
@@ -212,25 +291,21 @@ function onSidebarMessage(msg: FromSidebar) {
       mode = msg.mode;
       race.reset();
       return update();
-    case 'accept': {
-      // Everyone who made this exact suggestion.
-      const group = suggestions.filter(x => x.clueId === msg.clueId && sameLetters(x.letters, msg.letters));
-      if (!group.length || !page) return;
-      const letters = page.letters;
-      const changes = cellsToApply(page.puzzle, group[0])
-        .map(({ cell, letter }) => ({ cell, before: letters[cell], after: letter }))
-        .filter(c => c.before !== c.after);
-      lastAccept = changes.length ? { playerIds: group.map(x => x.playerId), clueId: msg.clueId, changes } : null;
-      // The suggestions disappear by themselves once their letters show up on the site.
-      adapter?.postMessage({ type: 'apply', cells: changes.map(c => ({ cell: c.cell, letter: c.after })) } satisfies ToAdapter);
+    case 'accept-mode':
+      acceptMode = msg.acceptMode;
+      browser.storage.local.set({ acceptMode });
       return update();
-    }
+    case 'accept':
+      acceptGroup(msg.clueId, msg.letters);
+      return update();
     case 'undo': {
       if (!lastAccept || !page) return;
       const letters = page.letters;
       // Only put back squares that still hold what the accept typed, so later changes aren't lost.
-      const cells = lastAccept.changes.filter(c => letters[c.cell] === c.after).map(c => ({ cell: c.cell, letter: c.before }));
-      adapter?.postMessage({ type: 'apply', cells } satisfies ToAdapter);
+      applyLetters(
+        lastAccept.changes.filter(c => letters[c.cell] === c.after).map(c => ({ cell: c.cell, letter: c.before })),
+        HOST_ID,
+      );
       lastAccept = null;
       return update();
     }
@@ -240,28 +315,24 @@ function onSidebarMessage(msg: FromSidebar) {
       suggestions = suggestions.filter(x => !inGroup(x));
       return update();
     }
-  }
-}
-
-function onRaceViewMessage(msg: FromRaceView) {
-  const now = Date.now();
-  switch (msg.type) {
-    case 'start-session':
-      return startSession();
-    case 'settings': {
+    case 'type':
+      // The host typing on the full-page view: straight onto the crossword.
+      if (mode === 'coop' && page) applyLetters(msg.cells.filter(c => c.cell >= 0 && c.cell < page!.letters.length), HOST_ID);
+      return;
+    case 'race-settings': {
       if (race.running) return;
       const penaltySeconds = Math.max(0, Math.min(600, Math.round(Number(msg.settings.penaltySeconds) || 0)));
       race.settings = { showOthersProgress: Boolean(msg.settings.showOthersProgress), penaltySeconds };
       return update();
     }
-    case 'start': {
+    case 'start-race': {
       // A race uses the crossword open on the site, and needs its answers and someone to race.
       const solutions = page && answers?.puzzleKey === puzzleKey(page.puzzle) ? answers.solutions : null;
       if (mode !== 'race' || race.running || !session || !page || !solutions || !onlineIds().length) return;
       race.start(page.puzzle, solutions, onlineIds(), now);
       return update();
     }
-    case 'end':
+    case 'end-race':
       race.end(now);
       return update();
     case 'new-race':
@@ -280,9 +351,17 @@ browser.runtime.onConnect.addListener(port => {
       if (msg.type === 'answers') answers = { puzzleKey: msg.puzzleKey, solutions: msg.solutions };
       if (msg.type === 'page') {
         const { type, ...snapshot } = msg;
-        if (page && puzzleKey(page.puzzle) !== puzzleKey(snapshot.puzzle)) {
-          suggestions = [];
-          lastAccept = null;
+        if (page && puzzleKey(page.puzzle) === puzzleKey(snapshot.puzzle)) recordChanges(page.letters, snapshot.letters);
+        else {
+          if (page) {
+            // A different puzzle: start afresh.
+            suggestions = [];
+            lastAccept = null;
+            history = { startedAt: null, events: [] };
+            typing.clear();
+          }
+          // Letters already on the grid open the replay.
+          recordChanges(snapshot.letters.map(() => ''), snapshot.letters);
         }
         page = snapshot;
       }
@@ -293,16 +372,11 @@ browser.runtime.onConnect.addListener(port => {
       if (adapter === port) adapter = null;
     });
   }
-  if (port.name === 'race') {
-    raceViews.add(port);
-    port.onMessage.addListener(m => onRaceViewMessage(m as FromRaceView));
-    port.onDisconnect.addListener(() => raceViews.delete(port));
-    update();
-  }
-  if (port.name === 'sidebar') {
-    sidebars.add(port);
-    port.onMessage.addListener(m => onSidebarMessage(m as FromSidebar));
-    port.onDisconnect.addListener(() => sidebars.delete(port));
+  const views = port.name === 'sidebar' ? sidebars : port.name === 'full' ? fullViews : null;
+  if (views) {
+    views.add(port);
+    port.onMessage.addListener(m => onCommand(m as Command));
+    port.onDisconnect.addListener(() => views.delete(port));
     update();
   }
 });

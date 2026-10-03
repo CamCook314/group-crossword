@@ -2,6 +2,7 @@
 // Mouse events pass straight through to the site.
 import { textOn } from '../../../shared/color';
 import type { RoomState } from '../../../shared/protocol';
+import { wordBreaks, type Puzzle } from '../../../shared/puzzle';
 import { cornerMarks } from '../../../shared/suggestions';
 import type { SiteAdapter } from './run';
 
@@ -10,6 +11,7 @@ const STYLE = `
   .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147483647; font-family: system-ui, sans-serif; }
   .mark { position: absolute; font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace; font-weight: 800;
           line-height: 1; opacity: 0.9; }
+  .break { position: absolute; background: #000; opacity: 0.85; }
   .badge { position: absolute; width: 18px; height: 18px; border-radius: 50%; font: 700 11px/18px system-ui, sans-serif;
            text-align: center; box-shadow: 0 0 0 2px #fff; }
 `;
@@ -47,11 +49,25 @@ export class Overlay {
     });
   }
 
+  private breaksFor: { puzzle: Puzzle; breaks: ReturnType<typeof wordBreaks> } | null = null;
+
   private draw() {
     const items: HTMLElement[] = [];
     const { state } = this;
     if (state?.puzzle) {
       const cells = this.adapter.cells();
+      // Word breaks from the enumerations, which most sites don't draw: a bar between words, a short dash for a hyphen.
+      if (this.breaksFor?.puzzle !== state.puzzle) this.breaksFor = { puzzle: state.puzzle, breaks: wordBreaks(state.puzzle) };
+      for (const [cell, b] of this.breaksFor.breaks) {
+        const r = cells[cell] && visibleRect(cells[cell]);
+        if (!r) continue;
+        const thick = Math.max(2, r.width * 0.08);
+        const dash = r.width * 0.3;
+        if (b.right === 'word') items.push(box(r.right - thick / 2, r.top, thick, r.height));
+        if (b.right === 'hyphen') items.push(box(r.right - dash / 2, r.top + r.height / 2 - thick / 2, dash, thick));
+        if (b.bottom === 'word') items.push(box(r.left, r.bottom - thick / 2, r.width, thick));
+        if (b.bottom === 'hyphen') items.push(box(r.left + r.width / 2 - thick / 2, r.bottom - dash / 2, thick, dash));
+      }
       for (const [cell, marks] of cornerMarks(state.puzzle, state.suggestions, state.players)) {
         const r = cells[cell] && visibleRect(cells[cell]);
         if (!r) continue;
@@ -95,6 +111,12 @@ export class Overlay {
     }
     this.layer.replaceChildren(...items);
   }
+}
+
+function box(left: number, top: number, width: number, height: number) {
+  const el = div('break', '');
+  el.style.cssText = `left:${left}px;top:${top}px;width:${width}px;height:${height}px`;
+  return el;
 }
 
 function div(className: string, text: string) {

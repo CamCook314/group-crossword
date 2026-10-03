@@ -36,20 +36,24 @@ copy doesn't work.
 4. Suggestions appear in the sidebar, and faintly in the corners of your real grid. **Accept** types them in; **Reject** tells the guest;
    **Undo accept** puts back whatever the last accepted suggestion changed. Identical suggestions from several people combine
    into one card at the top of the list.
+5. Choose when friends' answers go in: when you accept them, automatically once 2 or more agree, or automatically
+   (for trusted friends).
+6. **Open full view** gives you a full-page board: type there and it goes straight onto the crossword. The suggestions,
+   players, anagram pad and replay sit alongside.
 
 ### Racing
 
-1. In the sidebar, switch to **Race** and press **Open race view** (a full page).
+1. In the sidebar, switch to **Race** and press **Open full view**.
 2. Start the session there and send the link. People who join wait in the lobby.
 3. Pick the settings: whether racers see how far everyone else has got, and an optional time penalty (with a cooldown)
    for a full grid that's wrong.
-4. **Start race**: a 3-2-1 countdown, then everyone races on their own grid. The race view shows every board with
+4. **Start race**: a 3-2-1 countdown, then everyone races on their own grid. The full view shows every board with
    % correct, times and places. **Play** opens your own racing window.
-5. The race ends when everyone has finished, or when you press **End race**; everyone then sees the results.
-   **New race** goes back to the lobby.
+5. The race ends when everyone has finished, or when you press **End race**; everyone then sees the results: those who
+   finished by time, then everyone else by squares correct, and a replay of the race. **New race** goes back to the lobby.
 
-Races need the puzzle's answers, which the extension reads from the page ("Answers: N squares ✓" on the race view).
-If you race yourself, don't look at the race view or the crossword tab while you do.
+Races need the puzzle's answers, which the extension reads from the page ("Answers: N squares ✓" on the full view).
+If you race yourself, don't look at the full view or the crossword tab while you do.
 
 ## Guests
 
@@ -57,6 +61,11 @@ Open the link and pick a name and colour (the rainbow swatch opens a colour whee
 letters, press **Enter** to suggest them (partial answers are fine), **Esc** to clear. Suggestions show in the corners of the
 squares, filled top-right, top-left, bottom-left, bottom-right in the order they were made; a letter several people agree on
 shows once, in grey, top-right. Each player's initial sits next to the clue they're on.
+
+- **👍 Agree** (under the clue bar) backs someone else's suggestion for the clue you're on, without retyping it.
+- **Space** switches direction; **Tab** goes to the next clue. Filled squares are skipped as you type.
+- **Anagram** opens a scratchpad: type the letters, click them into the answer's squares, then **Use**.
+- **Replay** (at the bottom) plays back the solve so far.
 
 ## Development
 

@@ -3,7 +3,8 @@
 import type { Solutions } from '../../shared/answers';
 import type { RacePhase, RaceResults, RaceState } from '../../shared/protocol';
 import type { Puzzle } from '../../shared/puzzle';
-import { DEFAULT_SETTINGS, newRacer, places, progress, raceTime, squareStatus, updateLetters, type Racer, type RaceSettings } from '../../shared/race';
+import { DEFAULT_SETTINGS, newRacer, places, progress, raceTime, squareStatus, standings, updateLetters, type Racer, type RaceSettings } from '../../shared/race';
+import type { ReplayEvent } from '../../shared/replay';
 
 export const COUNTDOWN_MS = 3000;
 
@@ -31,6 +32,8 @@ export class RaceHost {
   goAt: number | null = null;
   endedAt: number | null = null;
   racers = new Map<string, Racer>();
+  /** Every change to every racer's grid, for the replay. */
+  timeline: ReplayEvent[] = [];
   results: RaceResults | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -68,6 +71,8 @@ export class RaceHost {
     const racer = this.racers.get(id);
     if (this.phase !== 'racing' || !racer || !this.solutions || letters.length !== racer.letters.length) return null;
     const result = updateLetters(racer, letters, this.solutions, this.settings, now);
+    const cells = letters.flatMap((letter, cell): [number, string][] => (letter !== racer.letters[cell] ? [[cell, letter]] : []));
+    if (cells.length && result.racer !== racer) this.timeline.push({ at: now - this.goAt!, board: id, by: id, cells });
     this.racers.set(id, result.racer);
     if (result.outcome !== 'not-quite') return null;
     return { penaltyMs: result.penalised ? this.settings.penaltySeconds * 1000 : 0, cooldownMs: Math.max(0, result.racer.cooldownUntil - now) };
@@ -88,6 +93,9 @@ export class RaceHost {
       solution: winner ? this.racers.get(winner)!.letters : this.solutions[0],
       winner,
       boards: Object.fromEntries([...this.racers].map(([id, r]) => [id, r.letters])),
+      standings: standings(this.racers, this.solutions, this.goAt),
+      replay: this.timeline,
+      durationMs: now - this.goAt,
     };
     this.phase = 'done';
     this.endedAt = now;
@@ -99,6 +107,7 @@ export class RaceHost {
     this.phase = 'lobby';
     this.puzzle = this.solutions = this.goAt = this.endedAt = this.results = null;
     this.racers = new Map();
+    this.timeline = [];
   }
 
   private clockMs(now: number) {

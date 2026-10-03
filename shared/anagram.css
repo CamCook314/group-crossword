@@ -1,0 +1,155 @@
+/* The anagram pad (shared/Anagram.tsx). Pages define the colour tokens (--bg, --surface, --fg, --muted, --line,
+   --accent, --me); the ones some pages lack fall back below. The parent positions the panel. Rules start with
+   .anagram so they win over the pages' own button and input styles. */
+.anagram {
+  --anagram-surface: var(--surface, var(--bg));
+  --anagram-line: var(--line, color-mix(in srgb, var(--fg) 20%, transparent));
+  --anagram-me: var(--me, var(--accent));
+  box-sizing: border-box;
+  width: 320px;
+  max-width: 100%;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  background: var(--anagram-surface);
+  color: var(--fg);
+  border: 1px solid var(--anagram-line);
+  border-radius: 8px;
+}
+.anagram * {
+  box-sizing: border-box;
+}
+.anagram button {
+  font: inherit;
+  border: 0;
+  border-radius: 4px;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+.anagram button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.anagram .anagram-secondary {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--anagram-line);
+}
+
+/* Letters to rearrange */
+.anagram .anagram-head {
+  display: flex;
+  gap: 8px;
+}
+.anagram .anagram-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--anagram-line);
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+.anagram .anagram-input::placeholder {
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--muted);
+}
+.anagram .anagram-close {
+  flex: none;
+  width: 34px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  background: transparent;
+  color: var(--muted);
+}
+.anagram .anagram-close:hover {
+  color: var(--fg);
+}
+
+/* The wheel. The ring has radius 38%, where circlePositions puts the letters. */
+.anagram .anagram-wheel {
+  position: relative;
+  width: 220px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto;
+}
+.anagram .anagram-wheel::before {
+  content: '';
+  position: absolute;
+  inset: 12%;
+  border: 1px solid var(--anagram-line);
+  border-radius: 50%;
+}
+.anagram .anagram-letter {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--anagram-me) 22%, var(--anagram-surface));
+  color: var(--fg);
+  font-size: 17px;
+  font-weight: 600;
+}
+.anagram .anagram-letter:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--anagram-me) 40%, var(--anagram-surface));
+}
+
+/* The answer's squares, shrinking to fit long answers */
+.anagram .anagram-slots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+}
+.anagram .anagram-slot {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 30px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--anagram-line);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 17px;
+  font-weight: 600;
+}
+.anagram .anagram-slot.known {
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  color: var(--muted);
+}
+.anagram .anagram-slot.placed {
+  background: color-mix(in srgb, var(--anagram-me) 22%, var(--anagram-surface));
+}
+.anagram .anagram-gap {
+  flex: none;
+  width: 10px;
+}
+.anagram .anagram-hyphen {
+  flex: none;
+  width: 8px;
+  height: 2px;
+  margin: 0 1px;
+  border-radius: 1px;
+  background: var(--muted);
+}
+
+.anagram .anagram-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

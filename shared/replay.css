@@ -1,0 +1,63 @@
+/* The replay player (shared/Replay.tsx). Pages define the colour tokens (--fg, --muted, --surface, --accent) and
+   the button and .dot styles; the boards use grid.css. */
+.replay-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+.replay-play {
+  min-width: 5.5em;
+}
+.replay-scrubber {
+  flex: 1;
+  min-width: 160px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--accent);
+}
+.replay-time {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.replay-speed {
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent);
+  border-radius: 4px;
+  padding: 5px 6px;
+}
+.replay-boards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.replay-boards figure {
+  margin: 0;
+}
+.replay-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.replay-caption .dot {
+  flex: none;
+}
+/* Takes the caption's spare width, but never widens it past the board. */
+.replay-label {
+  flex: 1;
+  width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.replay-finished {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

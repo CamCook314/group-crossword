@@ -1,4 +1,5 @@
 :root {
+  --clash: #d62728;
   --bg: #f6f6f8;
   --surface: #ffffff;
   --fg: #1b1b1f;
@@ -37,7 +38,8 @@ main {
   margin: 0 auto;
   padding: 16px 24px 40px;
 }
-header {
+header.top,
+.race-head {
   display: flex;
   align-items: center;
   gap: 16px;
@@ -230,4 +232,59 @@ input {
   margin-left: 10px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+}
+
+/* The full view's top bar */
+header.top {
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+}
+header.top .link {
+  flex: 1;
+  min-width: 280px;
+  align-items: center;
+}
+header.top .modes {
+  min-width: 180px;
+}
+.race-head h2 {
+  margin: 0;
+  font-size: 18px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--fg);
+}
+.center {
+  text-align: center;
+  margin-top: 15vh;
+}
+
+/* Co-op: the board, with the suggestion queue and players beside it */
+.coop {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .coop {
+    grid-template-columns: 1fr;
+  }
+}
+.coop .solver {
+  padding: 0;
+  max-width: none;
+}
+.coop aside section {
+  margin: 0 0 12px;
+}
+.coop .players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.replay-section {
+  flex-basis: 100%;
 }

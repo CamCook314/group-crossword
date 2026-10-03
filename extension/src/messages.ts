@@ -1,8 +1,9 @@
-// Messages between the parts of the extension (content script, background page, sidebar).
+// Messages between the parts of the extension (content script, background page, sidebar, full-page host view).
 import type { Solutions } from '../../shared/answers';
-import type { Player, RacePhase, RaceResults, RoomState } from '../../shared/protocol';
+import type { AcceptMode, Player, RacePhase, RaceResults, RoomState } from '../../shared/protocol';
 import type { Puzzle } from '../../shared/puzzle';
 import type { RaceSettings } from '../../shared/race';
+import type { ReplayEvent } from '../../shared/replay';
 import type { RacerDetail } from './raceHost';
 
 /** What a crossword page currently shows. Sent by the content script whenever it changes. */
@@ -53,7 +54,8 @@ export type FromSidebar =
   | { type: 'accept' | 'reject'; clueId: string; letters: string[] }
   | { type: 'undo' }
   | { type: 'host'; host: HostProfile }
-  | { type: 'mode'; mode: Mode };
+  | { type: 'mode'; mode: Mode }
+  | { type: 'accept-mode'; acceptMode: AcceptMode };
 
 /** Everything the host's race view shows. */
 export interface RaceViewStatus {
@@ -75,8 +77,21 @@ export interface RaceViewStatus {
 }
 
 export type FromRaceView =
-  | { type: 'start-session' }
-  | { type: 'settings'; settings: RaceSettings }
-  | { type: 'start' }
-  | { type: 'end' }
+  | { type: 'race-settings'; settings: RaceSettings }
+  | { type: 'start-race' }
+  | { type: 'end-race' }
   | { type: 'new-race' };
+
+/** Everything the full-page host view shows: the co-op state, the race, and the co-op replay. */
+export interface FullViewStatus {
+  sidebar: SidebarStatus;
+  race: RaceViewStatus;
+  replay: { events: ReplayEvent[]; durationMs: number };
+}
+
+/** Anything the sidebar or the full-page view can ask the background page to do. */
+export type Command =
+  | FromSidebar
+  | FromRaceView
+  /** The host typing on the full-page view: straight onto the crossword. */
+  | { type: 'type'; cells: { cell: number; letter: string }[] };

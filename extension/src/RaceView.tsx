@@ -1,49 +1,36 @@
-// The host's race view: lobby and settings, a live board for every racer (with % correct, which racers never see),
-// and the results.
-import { render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+// The race half of the host's full view: lobby and settings, a live board for every racer (with % correct, which
+// racers never see), and the results with a replay.
 import { MiniBoard } from '../../shared/Crossword';
 import type { Player } from '../../shared/protocol';
 import { DEFAULT_PENALTY_SECONDS, formatTime, ordinal } from '../../shared/race';
+import { ReplayPlayer } from '../../shared/ReplayPlayer';
+import { Standings } from '../../shared/Standings';
 import { useNow } from '../../shared/useNow';
-import type { FromRaceView, RaceViewStatus } from './messages';
+import type { Command, RaceViewStatus } from './messages';
 import type { RacerDetail } from './raceHost';
-
-let port: browser.runtime.Port;
-const send = (msg: FromRaceView) => port.postMessage(msg);
-
-function connect(onStatus: (status: RaceViewStatus) => void) {
-  port = browser.runtime.connect({ name: 'race' });
-  port.onMessage.addListener(m => onStatus(m as RaceViewStatus));
-  // The background page may not be running yet, so keep trying.
-  port.onDisconnect.addListener(() => setTimeout(() => connect(onStatus), 500));
-}
 
 const percent = (n: number, total: number) => (total ? Math.round((100 * n) / total) : 0);
 
-function App() {
-  const [status, setStatus] = useState<RaceViewStatus | null>(null);
-  useEffect(() => connect(setStatus), []);
-  const now = useNow(status?.phase === 'countdown' || status?.phase === 'racing');
-  if (!status) return null;
+export function RaceView({ status, send }: { status: RaceViewStatus; send: (msg: Command) => void }) {
   const { phase, goAt } = status;
+  const now = useNow(phase === 'countdown' || phase === 'racing');
   const player = (id: string) => status.players.find(p => p.id === id);
-  const clock = goAt === null ? '' : phase === 'countdown' ? '' : formatTime((status.endedAt ?? now) - goAt);
+  const clock = goAt === null || phase === 'countdown' ? '' : formatTime((status.endedAt ?? now) - goAt);
 
   return (
-    <main>
-      <header>
-        <h1>Race</h1>
+    <>
+      <div class="race-head">
+        <h2>Race</h2>
         {clock && <span class="clock">{clock}</span>}
         {phase === 'racing' && (
-          <button class="secondary" onClick={() => send({ type: 'end' })}>
+          <button class="secondary" onClick={() => send({ type: 'end-race' })}>
             End race
           </button>
         )}
         {phase === 'done' && <button onClick={() => send({ type: 'new-race' })}>New race</button>}
-      </header>
+      </div>
 
-      {phase === 'lobby' && <Lobby status={status} />}
+      {phase === 'lobby' && <Lobby status={status} send={send} />}
       {phase === 'countdown' && goAt !== null && <div class="countdown">{Math.max(1, Math.ceil((goAt - now) / 1000))}</div>}
       {phase === 'done' && <Results status={status} player={player} />}
       {(phase === 'racing' || phase === 'done') && (
@@ -55,11 +42,11 @@ function App() {
             ))}
         </section>
       )}
-    </main>
+    </>
   );
 }
 
-function Lobby({ status }: { status: RaceViewStatus }) {
+function Lobby({ status, send }: { status: RaceViewStatus; send: (msg: Command) => void }) {
   const { session, settings, pagePuzzle, answers } = status;
   const waiting = status.players.filter(p => p.online);
   const answersReady = typeof answers === 'number';
@@ -86,22 +73,15 @@ function Lobby({ status }: { status: RaceViewStatus }) {
     <>
       <section>
         <h2>Lobby</h2>
-        {session ? (
-          <div class="link">
-            <input readOnly value={session.link} onFocus={e => e.currentTarget.select()} />
-            <button onClick={() => navigator.clipboard.writeText(session.link)}>Copy</button>
-            <button class="secondary" onClick={play} title="Race yourself, in a new window">
-              Play
-            </button>
-            <span class="hint session-status">{session.status}</span>
-          </div>
-        ) : (
-          <button onClick={() => send({ type: 'start-session' })}>Start session</button>
-        )}
         <p class="puzzle">
           {pagePuzzle ? `${pagePuzzle.title} (${pagePuzzle.cols}×${pagePuzzle.rows})` : 'No crossword open'}
           {pagePuzzle && <span class={answersReady ? 'ok' : 'hint'}> · Answers: {answersReady ? `${answers} squares ✓` : answers === 'reading' ? 'reading…' : 'not found'}</span>}
         </p>
+        {session && (
+          <button class="secondary" onClick={play} title="Race yourself, in a new window">
+            Play
+          </button>
+        )}
       </section>
 
       <section>
@@ -110,7 +90,7 @@ function Lobby({ status }: { status: RaceViewStatus }) {
           <input
             type="checkbox"
             checked={settings.showOthersProgress}
-            onChange={e => send({ type: 'settings', settings: { ...settings, showOthersProgress: e.currentTarget.checked } })}
+            onChange={e => send({ type: 'race-settings', settings: { ...settings, showOthersProgress: e.currentTarget.checked } })}
           />
           Show racers how far everyone else has got (% filled)
         </label>
@@ -119,7 +99,7 @@ function Lobby({ status }: { status: RaceViewStatus }) {
             type="checkbox"
             checked={settings.penaltySeconds > 0}
             onChange={e =>
-              send({ type: 'settings', settings: { ...settings, penaltySeconds: e.currentTarget.checked ? DEFAULT_PENALTY_SECONDS : 0 } })
+              send({ type: 'race-settings', settings: { ...settings, penaltySeconds: e.currentTarget.checked ? DEFAULT_PENALTY_SECONDS : 0 } })
             }
           />
           Time penalty for a full grid that's wrong:
@@ -130,7 +110,7 @@ function Lobby({ status }: { status: RaceViewStatus }) {
             max={600}
             disabled={settings.penaltySeconds === 0}
             value={settings.penaltySeconds || DEFAULT_PENALTY_SECONDS}
-            onChange={e => send({ type: 'settings', settings: { ...settings, penaltySeconds: Number(e.currentTarget.value) } })}
+            onChange={e => send({ type: 'race-settings', settings: { ...settings, penaltySeconds: Number(e.currentTarget.value) } })}
           />
           seconds, then no more penalties for that long
         </label>
@@ -150,7 +130,7 @@ function Lobby({ status }: { status: RaceViewStatus }) {
         ) : (
           <p class="hint">Nobody yet. Send them the link, or press Play to race yourself.</p>
         )}
-        <button class="start" disabled={Boolean(problem)} onClick={() => send({ type: 'start' })}>
+        <button class="start" disabled={Boolean(problem)} onClick={() => send({ type: 'start-race' })}>
           Start race
         </button>
         {problem && <p class="hint">{problem}</p>}
@@ -161,6 +141,7 @@ function Lobby({ status }: { status: RaceViewStatus }) {
 
 function RacerCard({ racer, player, status, now }: { racer: RacerDetail; player?: Player; status: RaceViewStatus; now: number }) {
   const running = status.goAt !== null ? formatTime((status.endedAt ?? now) - status.goAt + racer.penaltyMs) : '';
+  const standing = status.results?.standings.find(s => s.id === racer.id);
   return (
     <div class={racer.finishedAt !== null ? 'card finished' : 'card'} data-racer={player?.name}>
       <div class="card-head">
@@ -168,7 +149,11 @@ function RacerCard({ racer, player, status, now }: { racer: RacerDetail; player?
         <b>{player?.name ?? 'Someone'}</b>
         {player && !player.online && <span class="hint"> (left)</span>}
         <span class="place">
-          {racer.place ? `${ordinal(racer.place)} · ${formatTime(racer.timeMs!)}` : status.phase === 'done' ? 'Didn’t finish' : running}
+          {racer.place
+            ? `${ordinal(racer.place)} · ${formatTime(racer.timeMs!)}`
+            : standing
+              ? `${ordinal(standing.place)} · didn’t finish`
+              : running}
         </span>
       </div>
       <div class="bar">
@@ -192,27 +177,22 @@ function Results({ status, player }: { status: RaceViewStatus; player: (id: stri
     <section class="results">
       <div>
         <h2>Results</h2>
-        <ol class="standings">
-          {[...status.racers]
-            .sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity))
-            .map(r => (
-              <li>
-                <span class="dot" style={{ background: player(r.id)?.color }} />
-                {player(r.id)?.name ?? 'Someone'}
-                <span class="time">
-                  {r.timeMs !== null ? formatTime(r.timeMs) : 'didn’t finish'}
-                  {r.penaltyMs > 0 && ` (incl. +${formatTime(r.penaltyMs)})`}
-                </span>
-              </li>
-            ))}
-        </ol>
+        <Standings standings={results.standings} player={player} />
       </div>
       <div>
         <h2>Solution{results.winner && ` · ${player(results.winner)?.name ?? 'Winner'}’s board`}</h2>
         <MiniBoard puzzle={puzzle} letters={results.solution} />
       </div>
+      <div class="replay-section">
+        <h2>Replay</h2>
+        <ReplayPlayer
+          puzzle={puzzle}
+          events={results.replay}
+          durationMs={results.durationMs}
+          solution={results.solution}
+          boards={results.standings.map(s => ({ id: s.id, label: player(s.id)?.name ?? 'Someone', color: player(s.id)?.color ?? '#888888', finishedAt: s.finishedMs }))}
+        />
+      </div>
     </section>
   );
 }
-
-render(<App />, document.getElementById('app')!);

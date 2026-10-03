@@ -1,9 +1,12 @@
 // A racer's view of a race: the lobby, the countdown, their own private grid, and the results.
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { ClueLists, cursorClass, Grid, MiniBoard, useCursor } from '../../shared/Crossword';
+import { AnagramPad } from '../../shared/AnagramPad';
+import { answerLabel, ClueLists, cursorClass, Grid, MiniBoard, useCursor } from '../../shared/Crossword';
 import type { GuestMessage, Player, RaceState, RoomState } from '../../shared/protocol';
-import { puzzleKey, type Puzzle } from '../../shared/puzzle';
+import { puzzleKey, slotBreaks, wordBreaks, type Puzzle } from '../../shared/puzzle';
 import { formatTime, ordinal } from '../../shared/race';
+import { ReplayPlayer } from '../../shared/ReplayPlayer';
+import { Standings } from '../../shared/Standings';
 import { useNow } from '../../shared/useNow';
 
 /** The host's "not quite" for a full, wrong grid, and when it arrived. */
@@ -58,7 +61,9 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
   const counting = race.phase === 'countdown';
   // The start time on this computer's clock, worked out from the host's.
   const goAt = useMemo(() => Date.now() + (counting ? race.clockMs : -race.clockMs), [race]);
+  const breaks = useMemo(() => wordBreaks(puzzle), [puzzle]);
   const now = useNow(true);
+  const [anagram, setAnagram] = useState(false);
 
   useEffect(() => {
     if (restore && restore.length === puzzle.blocks.length) setLetters(restore);
@@ -96,7 +101,12 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
   return (
     <div class="solver" style={{ '--me': myColor }}>
       <div class="clue-bar">
-        <div class="clue-bar-text">{cursor.clue && <><b>{cursor.clue.id}</b> {cursor.clue.text}</>}</div>
+        <div class="clue-bar-text">{cursor.clue && <><b>{answerLabel(cursor.answer)}</b> {cursor.answer[0].text}</>}</div>
+        {!finished && (
+          <button class="secondary" onClick={() => setAnagram(!anagram)}>
+            Anagram
+          </button>
+        )}
         <div class="race-clock">
           {finished ? (
             <span class="finished">
@@ -114,12 +124,28 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
         </div>
       )}
       {!finished && freeFixesMs > 0 && <div class="notice soft">Free fixes for {formatTime(freeFixesMs + 999)}</div>}
+      {anagram && !finished && cursor.clue && (
+        <div class="tool-panel">
+          <AnagramPad
+            key={answerLabel(cursor.answer)}
+            slots={cursor.answer.flatMap(part => part.cells).map(c => letters[c])}
+            breaks={slotBreaks(cursor.answer)}
+            onUse={placed => {
+              const cells = cursor.answer.flatMap(part => part.cells);
+              placed.forEach((letter, i) => letter && setLetter(cells[i], letter));
+              setAnagram(false);
+            }}
+            onClose={() => setAnagram(false)}
+          />
+        </div>
+      )}
 
       <div class="main">
         <Grid
           puzzle={puzzle}
           cellClass={cell => cursorClass(cursor, cell)}
           onCellDown={cursor.selectCell}
+          breaks={breaks}
           renderCell={cell => (
             <>
               <span class="letter">{letters[cell]}</span>
@@ -127,7 +153,13 @@ function Racing({ state, me, send, notice, restore, puzzle, race }: Props & { pu
             </>
           )}
         />
-        <ClueLists puzzle={puzzle} current={cursor.clue?.id} onSelect={cursor.selectClue} />
+        <ClueLists
+          puzzle={puzzle}
+          current={cursor.answer.map(c => c.id)}
+          crossing={cursor.crossing?.id}
+          refs={cursor.refs}
+          onSelect={cursor.selectClue}
+        />
       </div>
 
       <div class="progress">
@@ -159,25 +191,32 @@ function Results({ state, race, puzzle, me }: { state: RoomState; race: RaceStat
   const results = race.results;
   if (!results) return null;
   const player = (id: string) => state.players.find(p => p.id === id);
-  const ranked = [...race.racers].sort((a, b) => (a.place ?? Infinity) - (b.place ?? Infinity));
   const mistakes = (letters: string[]) => letters.map((l, cell) => (!l || puzzle.blocks[cell] ? '' : l === results.solution[cell] ? 'right' : 'wrong'));
+  // Extensions before 0.5.0 send no standings or replay: work the standings out from the boards.
+  const ranked =
+    results.standings ??
+    race.racers
+      .map(r => ({ ...r, finishedMs: null, correct: mistakes(results.boards[r.id] ?? []).filter(m => m === 'right').length }))
+      .sort((a, b) => (a.timeMs ?? Infinity) - (b.timeMs ?? Infinity) || b.correct - a.correct)
+      .map((s, i) => ({ ...s, place: i + 1 }));
   return (
     <div class="race-results">
       <h1>Results</h1>
-      <ol class="standings">
-        {ranked.map(r => (
-          <li class={r.id === me ? 'me' : ''}>
-            <span class="dot" style={{ background: player(r.id)?.color }} />
-            {player(r.id)?.name ?? 'Someone'}
-            <span class="time">
-              {r.timeMs !== null ? formatTime(r.timeMs) : 'didn’t finish'}
-              {r.penaltyMs > 0 && ` (incl. +${formatTime(r.penaltyMs)})`}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <Standings standings={ranked} player={player} me={me} />
       <h2>Solution{results.winner ? ` · ${player(results.winner)?.name ?? 'the winner'}’s board` : ''}</h2>
       <MiniBoard puzzle={puzzle} letters={results.solution} />
+      {results.replay && (
+        <>
+          <h2>Replay</h2>
+          <ReplayPlayer
+            puzzle={puzzle}
+            events={results.replay}
+            durationMs={results.durationMs}
+            solution={results.solution}
+            boards={ranked.map(s => ({ id: s.id, label: player(s.id)?.name ?? 'Someone', color: player(s.id)?.color ?? '#888888', finishedAt: s.finishedMs }))}
+          />
+        </>
+      )}
       <h2>Everyone’s boards</h2>
       <div class="boards">
         {ranked.map(r => (

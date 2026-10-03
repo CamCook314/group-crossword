@@ -7,9 +7,10 @@
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the overlay and guest view.
 import { writeFileSync } from 'node:fs';
 import { By, Key } from 'selenium-webdriver';
-import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, SITES, startGuestServer, step, until } from './helpers.mjs';
+import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, SITES, startGuestServer, step, switchToNewWindow, until } from './helpers.mjs';
 
 const sites = chosenSites();
+const shot = async (driver, file) => process.env.SHOTS && writeFileSync(`e2e/.artifacts/${file}.png`, await driver.takeScreenshot(), 'base64');
 buildExtension();
 const server = startGuestServer();
 const ANA_COLOR = '#12ab34';
@@ -98,6 +99,17 @@ try {
     await until(`sidebar shows ${whiteSquares} answers`, async () => (await host.findElement(By.css('.answers')).getText()) === `Answers: ${whiteSquares} squares ✓`, 30000);
     step(`the extension read the answers: ${whiteSquares} squares`);
 
+    // Word breaks from the enumerations (Crosshare's cryptic has them; Vox's puzzle doesn't).
+    if (name === 'crosshare') {
+      const guestBreaks = (await sam.findElements(By.css('.grid .cell.brk-r, .grid .cell.brk-b, .grid .cell.hyp-r, .grid .cell.hyp-b'))).length;
+      await onSite();
+      const overlayBreaks = await until('word breaks on the real crossword', () =>
+        host.executeScript(`return document.getElementById('group-crossword-overlay')?.shadowRoot.querySelectorAll('.break').length`),
+      );
+      if (!guestBreaks) throw new Error('no word breaks on the guest grid');
+      step(`word breaks: ${guestBreaks} on the guest grid, ${overlayBreaks} drawn on the real crossword`);
+    }
+
     // Host types on the real site.
     await onSite();
     await (await host.findElements(By.css(site.cells)))[0].click();
@@ -146,10 +158,12 @@ try {
     await shots('');
     step(`overlay: ${overlay.marks.map(m => m.text).join(',')} inside their squares; W top-right, A top-left after the number; badges for ${overlay.badges.join(' and ')}`);
 
-    // Ana makes the same 1A suggestion as Sam: the letters combine into one grey letter each, top-right,
+    // Ana backs Sam's 1A with 👍 Agree: the letters combine into one grey letter each, top-right,
     // and the host sees one combined card at the top of the list (above Ana's earlier 1D).
     await ana.findElement(By.css('li[data-clue="1A"]')).click();
-    await ana.actions().sendKeys(Key.ARROW_LEFT, 'wm', Key.ENTER).perform();
+    const agreeButton = await until("Sam's 1A in Ana's agree strip", () => ana.findElement(By.css('.agree-item[data-clue="1A"] button.agree')));
+    await shot(ana, `${name}-agree`);
+    await agreeButton.click();
     const GREY = 'rgb(138, 138, 138)';
     await until('agreed letters shown once, in grey, top-right', () =>
       both(async g => {
@@ -174,7 +188,7 @@ try {
     });
     await shots('-agreed');
     await sidebar();
-    step(`Ana suggested the same 1A: grey W and M on the guests and the overlay (${agreedOverlay.length} marks), and "${(await cards[0].getText()).replace(/\s+/g, ' ')}" tops the sidebar`);
+    step(`Ana pressed 👍 Agree on Sam's 1A: grey W and M on the guests and the overlay (${agreedOverlay.length} marks), and "${(await cards[0].getText()).replace(/\s+/g, ' ')}" tops the sidebar`);
 
     // Host accepts the combined card, then undoes it.
     await (await host.findElements(By.xpath("//button[normalize-space(.)='Accept']")))[0].click();
@@ -217,6 +231,85 @@ try {
     await sidebar();
     await until('sidebar queue empty', async () => (await host.findElements(By.css('.suggestion'))).length === 0);
     step("host typed Sam's suggested 1D letters on the site: the suggestion cleared by itself");
+
+    // Typing: Space switches direction, and the crossing clue is highlighted in the list.
+    const label = async guest => guest.findElement(By.css('.clue-bar-text b')).getText();
+    const before = await label(sam);
+    await sam.actions().sendKeys(Key.SPACE).perform();
+    const after = await until('Space switches direction', async () => {
+      const now = await label(sam);
+      return now !== before && now;
+    });
+    if (!(await sam.findElements(By.css('.clue-list li.crossing'))).length) throw new Error('no crossing clue highlighted');
+    step(`Space switched ${before} to ${after}; the crossing clue is highlighted`);
+
+    // Accepting automatically: once two agree, then for trusted friends.
+    const acceptMode = async label => {
+      await sidebar();
+      await host.findElement(By.xpath(`//label[contains(., '${label}')]/input`)).click();
+    };
+    const selectIn = (guest, cell, clueId) =>
+      until(`square ${cell} in ${clueId}`, async () => {
+        await guest.findElement(By.css(`.cell[data-cell="${cell}"]`)).click();
+        return (await label(guest)) === clueId;
+      });
+    await acceptMode('once 2 or more agree');
+    await selectIn(sam, 1, '1A');
+    await sam.actions().sendKeys('p', Key.ENTER).perform();
+    await ana.findElement(By.css('li[data-clue="1A"]')).click();
+    await (await until("Sam's P in Ana's agree strip", () => ana.findElement(By.css('.agree-item[data-clue="1A"] button.agree')))).click();
+    await until('the agreed answer went in by itself', async () => (await siteLetters(1)) === 'P');
+    step('setting "once 2 or more agree": Ana agreed with Sam\'s P and it went onto the site by itself');
+    await acceptMode('trusted');
+    await selectIn(sam, 2, '1A');
+    await sam.actions().sendKeys('k', Key.ENTER).perform();
+    await until('the trusted answer went in by itself', async () => (await siteLetters(2)) === 'K');
+    await acceptMode('When I accept them');
+    step('setting "trusted": Sam\'s K went straight onto the site');
+
+    // The anagram pad: a letter placed from the wheel goes into the answer's first empty square, as a draft.
+    await selectIn(sam, 3, '1A');
+    await sam.findElement(By.xpath("//button[normalize-space(.)='Anagram']")).click();
+    await (await until('anagram box', () => sam.findElement(By.css('.anagram-input')))).sendKeys('xy');
+    const wheel = await until('two letters on the wheel', async () => {
+      const letters = await sam.findElements(By.css('.anagram-letter'));
+      return letters.length === 2 && letters;
+    });
+    await wheel[0].click();
+    await shot(sam, `${name}-anagram`);
+    await sam.findElement(By.xpath("//div[@class='anagram-actions']/button[normalize-space(.)='Use']")).click();
+    await until('anagram letter in the grid as a draft', async () => (await sam.findElements(By.css('.cell[data-cell="3"] .letter.draft'))).length === 1);
+    await sam.actions().sendKeys(Key.ESCAPE).perform();
+    step('anagram pad: a letter from the wheel went into the first empty square of 1A as a draft');
+
+    // The co-op replay, scrubbed to the end, shows exactly what's on the site.
+    await sam.findElement(By.xpath("//div[@class='footer']/button[normalize-space(.)='Replay']")).click();
+    await until('replay of the solve so far', async () => Number(await sam.findElement(By.css('.modal .replay-scrubber')).getAttribute('max')) > 0);
+    await sam.executeScript(`const s = document.querySelector('.modal .replay-scrubber'); s.value = s.max; s.dispatchEvent(new Event('input', { bubbles: true }));`);
+    const everyCell = [...Array(siteCellCount).keys()];
+    const onSiteNow = await siteLetters(...everyCell);
+    await until('the replay ends where the site is', async () =>
+      (await sam.executeScript(`return [...document.querySelectorAll('.modal .replay-boards .cell')].map(c => c.querySelector('.letter')?.textContent || '').join('')`)) === onSiteNow,
+    );
+    await shot(sam, `${name}-replay`);
+    await sam.findElement(By.xpath("//div[@class='modal-head']/button[normalize-space(.)='Close']")).click();
+    step('co-op replay: scrubbed to the end, it shows exactly the letters on the site');
+
+    // The host's full view: the same board, and typing there goes straight onto the site.
+    await sidebar();
+    const windows = await host.getAllWindowHandles();
+    await host.findElement(By.xpath("//button[normalize-space(.)='Open full view']")).click();
+    const fullView = await switchToNewWindow(host, windows, 'full view');
+    await until('full view board', async () => (await host.findElements(By.css('.coop .grid .cell'))).length === siteCellCount);
+    await host.findElement(By.css('.coop .cell[data-cell="4"]')).click();
+    await host.actions().sendKeys('j').perform();
+    await until("the host's letter reached the site", async () => (await siteLetters(4)) === 'J');
+    await host.switchTo().window(fullView);
+    await host.manage().window().setRect({ width: 1500, height: 1000 });
+    await shot(host, `${name}-fullview`);
+    await host.close();
+    await sidebar();
+    step('full view: the host typed J on the board there and it went onto the real crossword');
   }
   console.log('\nAll end-to-end checks passed.');
 } catch (e) {

@@ -4,7 +4,8 @@ Solve crosswords together on the sites we already use (Crosshare, Courier Mail) 
 The host plays on the real site in Firefox; friends join from a link and see a live copy of the puzzle,
 pick clues, and submit suggestions that the host accepts or rejects.
 
-Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.md).
+Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.md). Ideas for more competitive modes:
+[FENCING_BATTLE.md](FENCING_BATTLE.md).
 
 ## Decisions
 
@@ -34,6 +35,8 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
  │ Background page: session, players, suggestion queue,  │
  │   PeerJS host                                         │
  │ Sidebar: start/stop, copy link, players, accept/reject│
+ │ Full view (extension page): a board that types into   │
+ │   the site, suggestions, players, tools; or the race  │
  └──────────────────────────┬────────────────────────────┘
                             │ WebRTC data channels
              ┌──────────────┼──────────────┐
@@ -53,18 +56,35 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
   they're anchored to the cell's own edges, so wide letters can't spill into the next square.
 - A letter two or more players suggest for the same square is shown once, in grey, top-right (most-agreed first),
   ahead of single-player letters. This works square by square, so single letters and whole words both combine.
+- Word breaks from the enumeration: a thick line between words, a short dash for a hyphen, on every grid including
+  the host's real crossword.
+- Linked answers ("See 13"): an answer spread over several entries is one answer. Selecting any part selects all of
+  it, typing runs on from one part to the next, and the clue bar says "1A/3A". A clue that mentions another ("4 Down",
+  or one the site marks) lightly highlights that clue too.
+- Typing: filling an empty square skips squares already filled; at the end of an answer the cursor goes back to its
+  first empty square, else on to the next unfinished clue. Space switches direction, Tab goes to the next clue, and the
+  crossing clue is highlighted in the list.
+- Anagram pad: type the letters and they sit in a circle (Shuffle mixes them); click them into the answer's squares,
+  which show its word breaks and any letters already in the grid. **Use** puts them in the grid: as a draft for a
+  guest, straight onto the crossword for the host.
+- Replay: watch the solve back, with a slider and speeds. The host's extension records each letter that changes on the
+  site and whose it was (grey for agreed ones), in memory only. Letters already there when the puzzle opens come first;
+  a new puzzle starts a new replay.
 
 **Guests** (shared view: grid + Across/Down lists, like the sites themselves)
 - Type letters into a clue's cells as a private draft. Partial answers are fine.
 - Press Enter (or Submit) to share it as a suggestion. Only then do others see it.
 - Resubmitting for the same clue replaces your previous suggestion.
+- Under the clue bar: everyone else's suggestions for the selected answer, each with **👍 Agree**, which suggests the
+  same letters so they combine into one card.
+- What Enter says follows the host's accept setting ("Enter" rather than "Suggest" when it goes straight in).
 
 **Host** (plays on the real site)
 - An overlay drawn on top of the real crossword shows other players' badges and suggestion letters.
   The overlay ignores the mouse, so clicks go through to the site as normal.
 - The host's own current clue (read from the site's highlight) is broadcast as the host's badge.
 - Letters the host types on the site are real letters and sync to everyone. The host doesn't need to suggest.
-- Sidebar lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
+- The sidebar (and the full view) lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
   Identical suggestions (same clue, same letters) combine into one card ("Sam + Ana", "2 agree"), and cards with more
   agreement go to the top. Accept and Reject act on the whole card; Reject tells everyone on it. Suggestions that only
   partly match stay separate cards (their shared letters still show grey on the grid).
@@ -73,6 +93,13 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
 - Undo accept → puts back the squares the last accepted suggestion changed (only those still holding what it typed,
   so later typing isn't lost). One level only; the undone suggestion doesn't return to the queue.
 - A suggestion whose letters all match the grid is cleared automatically.
+- Accept setting (remembered): friends' answers go in when the host accepts them (the default), automatically once
+  two or more players agree on the same letters, or automatically for trusted friends. Automatic accepts work a
+  submitted suggestion at a time, exactly like pressing Accept (so Undo accept works on them); letters still go onto
+  the site through the host's crossword, so drafts stay private until Enter.
+- Full view: **Open full view** in the sidebar opens an extension page with the same board guests see, everyone's
+  suggestions on it. Whatever the host types there goes straight onto the real crossword. Beside it: the suggestion
+  queue, the players, the anagram pad and the replay. In Race mode the same page is the race view.
 
 ## Site notes
 
@@ -111,14 +138,16 @@ Notes:
 | 5. Suggestions | Submit, corner letters, sidebar queue, accept → typed into site, reject | Full loop works | ✅ Crosshare + Vox PuzzleMe |
 | 6. Courier Mail | PuzzleMe adapter (runs inside the iframe) | Steps 3–5 work on Courier Mail | ✅ confirmed by the host on Courier Mail |
 | 7. Robustness + install | Reconnects, host page reload, switching puzzles; unlisted signing | A full session with friends without restarts | ✅ Signed (0.3.0, unlisted) and installed; a real session ran without restarts. Guests rejoin as the same player, the host re-registers with the broker, switching puzzles works. |
+| 8. Polish | Word breaks, linked answers, Agree, accept settings, typing, anagram pad, replay, the host's full view | Both sites end to end | ✅ `npm run e2e`, both sites, 2026-10-03 |
 
 ## Messages
 
 See [shared/protocol.ts](shared/protocol.ts).
 - Host → guest: `state`, the whole room (puzzle without answers, letters, players, suggestions), sent after every change.
-  It's a few KB, and resending everything means guests can't drift. `rejected` goes to the suggester only.
+  It's a few KB, and resending everything means guests can't drift. It includes the accept setting. `rejected` goes
+  to the suggester only; `replay` (the solve so far) to whoever asked.
 - Guest → host: `hello` (persistent client id, name, colour; rejoining keeps your identity), `select` (current clue),
-  `suggest` (clue, letters with blanks). Validated by `parseGuestMessage`.
+  `suggest` (clue, letters with blanks; Agree sends the same letters), `get-replay`. Validated by `parseGuestMessage`.
 
 ## Tech
 
@@ -126,6 +155,7 @@ TypeScript throughout, bundled by one small esbuild script ([build.mjs](build.mj
 (WXT and Vite dropped: fewer moving parts). Preact for the guest page and sidebar. PeerJS for WebRTC. web-ext for running
 and signing. Vitest for unit tests; Selenium driving real Firefox for the end-to-end test ([e2e/run.mjs](e2e/run.mjs)).
 Needs Firefox 140+, because the manifest declares that the extension shares website content, which Mozilla now requires.
+[.gitattributes](.gitattributes) keeps every file's line endings LF, so a Windows checkout doesn't change them.
 
 ## Risks
 
@@ -136,6 +166,6 @@ Needs Firefox 140+, because the manifest declares that the extension shares webs
 
 ## Not doing (for now)
 
-Voice/chat (use Discord), phone guests, hosting from Chrome, OCR import, linked clues spanning several slots ("See 13"),
-barred grids, mirroring the sites' Check/Reveal marks, keeping a session alive after the host closes Firefox.
+Voice/chat (use Discord), phone guests, hosting from Chrome, OCR import, barred grids, mirroring the sites'
+Check/Reveal marks, hints, keeping a session alive after the host closes Firefox. AI explanations of clues: maybe later.
 Sessions are private to whoever has the link; nothing is stored anywhere.

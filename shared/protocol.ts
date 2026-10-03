@@ -1,6 +1,7 @@
 // Messages between the host's extension and the guests' pages.
 import type { Puzzle } from './puzzle';
-import type { RaceSettings } from './race';
+import type { RaceSettings, Standing } from './race';
+import type { ReplayEvent } from './replay';
 
 export const GUEST_URL = 'https://camcook314.github.io/group-crossword/';
 
@@ -23,8 +24,13 @@ export interface Suggestion {
   letters: string[];
 }
 
+/** How friends' suggestions get onto the crossword in co-op: when the host accepts them, automatically once two or more
+ * people agree, or automatically (trusted). */
+export type AcceptMode = 'manual' | 'agreed' | 'trusted';
+
 export interface RoomState {
   mode: 'coop' | 'race';
+  acceptMode: AcceptMode;
   /** In a race, only sent once the countdown starts. */
   puzzle: Puzzle | null;
   /** Co-op: letters on the host's real crossword, one per cell ('' = empty). */
@@ -65,6 +71,11 @@ export interface RaceResults {
   winner: string | null;
   /** Every racer's final grid. */
   boards: Record<string, string[]>;
+  /** Everyone, finishers first by time, then the rest by squares correct. */
+  standings: Standing[];
+  /** Every racer's grid changes, for watching the race back. */
+  replay: ReplayEvent[];
+  durationMs: number;
 }
 
 export type HostMessage =
@@ -73,14 +84,17 @@ export type HostMessage =
   /** To a racer who rejoins mid-race: their grid so far. */
   | { t: 'race-letters'; letters: string[] }
   /** To a racer whose full grid is wrong: any penalty just added, and how long until another is possible. */
-  | { t: 'not-quite'; penaltyMs: number; cooldownMs: number };
+  | { t: 'not-quite'; penaltyMs: number; cooldownMs: number }
+  /** The co-op solve so far, for watching it back (asked for with get-replay). */
+  | { t: 'replay'; events: ReplayEvent[]; durationMs: number };
 
 export type GuestMessage =
   | { t: 'hello'; clientId: string; name: string; color: string }
   | { t: 'select'; clueId: string | null }
   | { t: 'suggest'; clueId: string; letters: string[] }
   /** A racer's whole grid, whenever it changes. */
-  | { t: 'race-letters'; letters: string[] };
+  | { t: 'race-letters'; letters: string[] }
+  | { t: 'get-replay' };
 
 export const normalizeLetter = (s: unknown) => (typeof s === 'string' && /^[a-z]$/i.test(s) ? s.toUpperCase() : '');
 
@@ -103,6 +117,8 @@ export function parseGuestMessage(data: unknown): GuestMessage | null {
     case 'race-letters':
       if (!Array.isArray(m.letters) || m.letters.length > 1000) return null;
       return { t: 'race-letters', letters: m.letters.map(normalizeLetter) };
+    case 'get-replay':
+      return { t: 'get-replay' };
     default:
       return null;
   }

@@ -44,8 +44,8 @@ try {
   await host.switchTo().window(sidebarWindow);
   await (await button(host, 'Race')).click();
   const before = await host.getAllWindowHandles();
-  await (await button(host, 'Open race view')).click();
-  const raceWindow = await switchToNewWindow(host, before, 'race view');
+  await (await button(host, 'Open full view')).click();
+  const raceWindow = await switchToNewWindow(host, before, 'full view');
   const raceView = () => host.switchTo().window(raceWindow);
   await (await button(host, 'Start session')).click();
   await until('session live', async () => (await text(host, '.session-status')) === 'Live', 30000);
@@ -194,7 +194,21 @@ try {
     const boards = await sam.findElements(By.css('.boards figure'));
     const anaWrong = await ana.findElements(By.xpath("//figure[contains(., 'Ana')]//div[contains(@class, 'wrong')]"));
     if (boards.length !== 2 || anaWrong.length !== 1) throw new Error(`boards: ${boards.length}, Ana's wrong squares: ${anaWrong.length}`);
+    if (!standings[1].includes(`correct`)) throw new Error(`Ana isn't ranked by squares correct: ${standings[1]}`);
     step(`results: ${standings.join(' / ').replace(/\n/g, ' ')}; Sam's board shown as the solution; both final boards, Ana's mistake marked`);
+
+    // The replay, scrubbed to the end: Sam's board complete and marked finished.
+    await sam.executeScript(`const s = document.querySelector('.race-results .replay-scrubber'); s.value = s.max; s.dispatchEvent(new Event('input', { bubbles: true }));`);
+    await until('the replay ends with Sam finished', async () =>
+      sam.executeScript(
+        `const fig = [...document.querySelectorAll('.replay-boards figure')].find(f => f.textContent.includes('Sam'));
+         return fig.querySelector('.replay-finished') && [...fig.querySelectorAll('.letter')].filter(l => l.textContent).length === arguments[0];`,
+        white,
+      ),
+    );
+    await raceView();
+    if (!(await host.findElements(By.css('.results .replay'))).length) throw new Error('no replay on the race view');
+    step('replay: scrubbed to the end, Sam\'s board is complete and marked finished; the race view has it too');
 
     await shot(sam, `race-${name}-results`);
     await raceView();

@@ -1,0 +1,134 @@
+/* Pieces shared by the sidebar and the full view: colour swatches, the mode switch, players, and the suggestion queue.
+   Pages define the colour tokens (--bg, --fg, --muted, --line, --accent, --clash). */
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+}
+.swatch.picked {
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
+}
+.players {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.players li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.players .offline {
+  color: var(--muted);
+}
+.on-clue {
+  margin-left: auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.suggestion {
+  border-left: 4px solid;
+  padding: 6px 8px;
+  margin: 8px 0;
+  background: color-mix(in srgb, var(--fg) 4%, transparent);
+  border-radius: 4px;
+}
+.suggestion .clue {
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+.letters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.letters span {
+  width: 20px;
+  height: 22px;
+  line-height: 22px;
+  text-align: center;
+  font-weight: 700;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.letters .blank {
+  color: var(--muted);
+  font-weight: 400;
+}
+.letters .clash {
+  border-color: var(--clash);
+  color: var(--clash);
+}
+.actions {
+  display: flex;
+  gap: 6px;
+}
+.undo {
+  margin-bottom: 4px;
+}
+.suggestion .dot + .dot {
+  margin-left: -3px;
+}
+.agree-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--fg) 12%, transparent);
+}
+.modes {
+  display: flex;
+}
+.mode {
+  flex: 1;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+.mode:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.mode:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.mode.picked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.mode:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.accept-mode {
+  border: 0;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.accept-mode legend {
+  padding: 0;
+  margin-bottom: 4px;
+  color: var(--muted);
+}
+.accept-mode label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 0;
+}

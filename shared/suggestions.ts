@@ -44,6 +44,8 @@ export interface CornerMark {
 
 /** Colour for a letter that two or more players suggested. */
 export const AGREED_COLOR = '#8a8a8a';
+/** Who the co-op replay credits for letters several people agreed on. */
+export const AGREED_BY = 'agreed';
 
 /**
  * Suggested letters to draw in each cell's corners. A letter two or more players suggested is shown once, in grey,

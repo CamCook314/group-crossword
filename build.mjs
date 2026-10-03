@@ -23,7 +23,7 @@ if (want('guest')) {
   mkdirSync('guest/dist', { recursive: true });
   cpSync('guest/index.html', 'guest/dist/index.html');
   cpSync('guest/style.css', 'guest/dist/style.css');
-  cpSync('shared/grid.css', 'guest/dist/grid.css');
+  for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `guest/dist/${f}`);
   const options = { ...common, entryPoints: ['guest/src/main.tsx'], outfile: 'guest/dist/main.js', target: 'es2020' };
   if (serve) {
     const ctx = await esbuild.context(options);
@@ -38,14 +38,14 @@ if (want('guest')) {
 if (want('extension')) {
   rmSync('extension/dist', { recursive: true, force: true });
   mkdirSync('extension/dist', { recursive: true });
-  for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'race.html', 'race.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
-  cpSync('shared/grid.css', 'extension/dist/grid.css');
+  for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'panel.css', 'host.html', 'host.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
+  for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `extension/dist/${f}`);
   await esbuild.build({
     ...common,
     entryPoints: {
       background: 'extension/src/background.ts',
       sidebar: 'extension/src/sidebar.tsx',
-      race: 'extension/src/race.tsx',
+      host: 'extension/src/host.tsx',
       'content-crosshare': 'extension/src/content/crosshare.ts',
       'content-puzzleme': 'extension/src/content/puzzleme.ts',
     },

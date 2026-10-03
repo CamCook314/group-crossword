@@ -2,7 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ColorPicker } from '../../shared/ColorPicker';
 import { COLORS, type RoomState } from '../../shared/protocol';
-import { Board } from './Board';
+import { Board, type CoopReplay } from './Board';
 import { connect, type Connection } from './connection';
 import { Race, type NotQuite } from './Race';
 
@@ -42,6 +42,7 @@ function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [notice, setNotice] = useState<NotQuite | null>(null);
   const [restore, setRestore] = useState<string[] | null>(null);
+  const [replay, setReplay] = useState<CoopReplay | null>(null);
   const conn = useRef<Connection | null>(null);
 
   useEffect(() => {
@@ -52,7 +53,9 @@ function App() {
       { t: 'hello', ...profile },
       msg => {
         if (msg.t === 'state') {
-          setState(msg.state);
+          // Extensions before 0.5.0 send puzzles without linked answers or cross-references.
+          const { puzzle } = msg.state;
+          setState(puzzle && !puzzle.links ? { ...msg.state, puzzle: { ...puzzle, links: [], refs: {} } } : msg.state);
           // A new race starts clean.
           if (msg.state.race?.phase === 'countdown') {
             setNotice(null);
@@ -61,6 +64,7 @@ function App() {
         }
         if (msg.t === 'not-quite') setNotice({ penaltyMs: msg.penaltyMs, cooldownMs: msg.cooldownMs, at: Date.now() });
         if (msg.t === 'race-letters') setRestore(msg.letters);
+        if (msg.t === 'replay') setReplay({ events: msg.events, durationMs: msg.durationMs });
         if (msg.t === 'rejected') {
           setToast(`The host rejected your ${msg.clueId} suggestion.`);
           setTimeout(() => setToast(null), 4000);
@@ -96,7 +100,18 @@ function App() {
         <Race state={state} me={profile.clientId} send={m => conn.current?.send(m)} notice={notice} restore={restore} />
       )}
       {/* Extensions before race mode (0.3.0 and earlier) don't send a mode: that's co-op. */}
-      {state && state.mode !== 'race' && <Board state={state} me={profile.clientId} send={m => conn.current?.send(m)} />}
+      {state && state.mode !== 'race' && (
+        <Board
+          state={state}
+          me={profile.clientId}
+          send={m => conn.current?.send(m)}
+          replay={replay}
+          requestReplay={() => {
+            setReplay(null);
+            conn.current?.send({ t: 'get-replay' });
+          }}
+        />
+      )}
       {toast && <div class="toast">{toast}</div>}
     </>
   );

@@ -7,7 +7,7 @@ Status: ⏳ to do, ❓ needs a decision, ✅ done.
 
 | # | Note | Plan | Status |
 |---|---|---|---|
-| 1 | Maybe don't fill in the real crossword until our tool has the whole grid right. The host plays in the full view and everyone plays only there until it's complete. | The background page holds the letters, the way race mode already does. The real site only supplies the puzzle and its answers. Once the grid is right, the host gets a button to fill it in on the site. This also fixes #2, #4, #5 and #6, and most of #7. | ❓ |
+| 1 | Maybe don't fill in the real crossword until our tool has the whole grid right. The host plays in the full view and everyone plays only there until it's complete. | The background page holds the letters, the way race mode already does. The real site only supplies the puzzle and its answers. Once the grid is right, the host gets a button to fill it in on the site. This also fixes #2, #4, #5 and #6, and most of #7. | ⏳ Decided: play in our tool |
 | 2 | In the full view, letters typed by the host didn't reach the real crossword. Crosshare pauses when its tab loses focus; the host turned that off in Crosshare's settings. Courier Mail not checked. | Goes away with #1. Without #1: tell the host about the setting, or bring the crossword tab forward while typing. | ⏳ |
 | 3 | With a session open, opening another crossword in another tab takes the session over, and you can't switch back to the first crossword. | Keep the session on the crossword it started with. Another tab's crossword only takes over when the host presses "Use this crossword" in the sidebar or full view. | ⏳ |
 
@@ -15,7 +15,7 @@ Status: ⏳ to do, ❓ needs a decision, ✅ done.
 
 | # | Note | Plan | Status |
 |---|---|---|---|
-| 4 | Crosshare's own Check marks aren't passed to the guests. | Our own Check, using the answers the extension already reads for races. Wrong squares are marked for everyone. | ❓ who can check (host only, or everyone), and what (square, answer, grid) |
+| 4 | Crosshare's own Check marks aren't passed to the guests. | Our own Check, using the answers the extension already reads for races. Wrong squares are marked for everyone. Square, answer or whole grid. | ⏳ Decided: host only |
 | 5 | The site's dialog when the grid is full, wrong or right, isn't passed to the guests. | Our own message to everyone: "Not quite" when the grid is full but wrong, and "Solved!" when it's right. | ⏳ |
 | 6 | Badges on the real site's clue list stack sideways and cover the clue (screenshot 2). | Nothing needed if the host only uses the full view (#1). Otherwise stack them more compactly. | ⏳ |
 
@@ -60,4 +60,4 @@ Status: ⏳ to do, ❓ needs a decision, ✅ done.
 | # | Note | Plan | Status |
 |---|---|---|---|
 | 23 | In race mode the host's full view has no way to join as a player. | Check why Play isn't showing (it's in the lobby when a session is live) and make it obvious. | ⏳ |
-| 24 | The winner gets no Replay while waiting for the others to finish. | Finished racers can watch the race. They know every answer by then, so it gives nothing away. | ❓ live boards, or a replay of the race so far |
+| 24 | The winner gets no Replay while waiting for the others to finish. | Finished racers can watch the race. They know every answer by then, so it gives nothing away. | ⏳ Decided: everyone's live boards |

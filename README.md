@@ -23,7 +23,9 @@ by Mozilla as *unlisted*: free, automatic, and not published on the add-ons stor
    Firefox will ask to allow sharing website content: that's the crossword being sent to your friends.
 
 Each new signed build needs a higher `version` in [extension/manifest.json](extension/manifest.json).
-To try it without signing, `npm run firefox` opens a separate Firefox with the extension loaded until you close it.
+To try a build without signing, `npm run firefox` opens a separate Firefox (its own profile, so log in to Courier Mail
+there) with the extension loaded until you close it. Loading it through `about:debugging` alongside the installed signed
+copy doesn't work.
 
 ### Each session
 

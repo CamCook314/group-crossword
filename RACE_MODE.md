@@ -160,8 +160,8 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 
 | Step | What | Done when | Status |
 |---|---|---|---|
-| 0. Answers | Answer readers in both adapters; the sidebar shows "Answers: N squares ✓" | Works on Crosshare and Vox (e2e); the host confirms it on Courier Mail | ✅ Crosshare + Vox in the real extension (e2e, 2026-10-03). ⏳ Courier Mail |
-| 1. Race logic | `shared/race.ts` + tests | Unit tests pass | |
+| 0. Answers | Answer readers in both adapters; the sidebar shows "Answers: N squares ✓" | Works on Crosshare and Vox (e2e); the host confirms it on Courier Mail | ✅ Crosshare + Vox (e2e) and Courier Mail (host, via `npm run firefox`), 2026-10-03 |
+| 1. Race logic | `shared/race.ts` + tests | Unit tests pass | ✅ |
 | 2. Shared grid | Move the grid and clue lists into `shared/` | Co-op e2e still passes | |
 | 3. Hub + race view | Race phases, lobby + settings, Start/End, live boards with % correct, results | Racers in the lobby show on the race view; Start runs a countdown | |
 | 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / penalty + cooldown, finished, results | A full race works end to end | |

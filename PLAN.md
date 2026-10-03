@@ -101,14 +101,14 @@ Notes:
 
 | Step | What | Done when | Status |
 |---|---|---|---|
-| 0. Prove it in real Firefox | Read + type on both sites from the extension; WebRTC from the background page | Works on Courier Mail while logged in; a friend on another network connects | ✅ Crosshare + Vox PuzzleMe (e2e); ✅ Courier Mail (host testing, 2026-10-03). ⏳ a friend on another network |
+| 0. Prove it in real Firefox | Read + type on both sites from the extension; WebRTC from the background page | Works on Courier Mail while logged in; a friend on another network connects | ✅ Crosshare + Vox PuzzleMe (e2e); ✅ Courier Mail (host testing, 2026-10-03); ✅ a real session with a friend joining |
 | 1. Clickable mockup | Guest view + host overlay look | We're happy with highlights, badges, corner letters | Skipped: built the real UI instead; review it in use |
 | 2. Core | Puzzle model (numbering, cells per clue), message types | Unit tests pass | ✅ |
 | 3. Live view | Adapters + extension + guest page | Host types on the site → guests see it; late joiners get the full state | ✅ |
 | 4. Players | Names, colours, clue badges (guest view + host overlay) | Each player's clue shows for everyone | ✅ |
 | 5. Suggestions | Submit, corner letters, sidebar queue, accept → typed into site, reject | Full loop works | ✅ Crosshare + Vox PuzzleMe |
 | 6. Courier Mail | PuzzleMe adapter (runs inside the iframe) | Steps 3–5 work on Courier Mail | ✅ confirmed by the host on Courier Mail |
-| 7. Robustness + install | Reconnects, host page reload, switching puzzles; unlisted signing | A full session with friends without restarts | Partly: guests rejoin as the same player, the host re-registers with the broker, switching puzzles works. ⏳ signing |
+| 7. Robustness + install | Reconnects, host page reload, switching puzzles; unlisted signing | A full session with friends without restarts | ✅ Signed (0.3.0, unlisted) and installed; a real session ran without restarts. Guests rejoin as the same player, the host re-registers with the broker, switching puzzles works. |
 
 ## Messages
 

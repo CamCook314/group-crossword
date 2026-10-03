@@ -31,10 +31,15 @@ export function puzzleMeSolutions(data: unknown): Solutions | null {
   return [grid];
 }
 
-/** Do these solutions belong to this puzzle: same size, same black squares, and every white square filled? */
+/**
+ * Do these solutions belong to this puzzle (same size and black squares), with a single letter in every white square?
+ * Racers type one letter per square, so puzzles with several letters in a square can't be raced.
+ */
 export function solutionsFit(puzzle: Puzzle, solutions: Solutions): boolean {
   return (
     solutions.length > 0 &&
-    solutions.every(s => s.length === puzzle.blocks.length && s.every((letter, cell) => (letter === '') === puzzle.blocks[cell]))
+    solutions.every(
+      s => s.length === puzzle.blocks.length && s.every((letter, cell) => (puzzle.blocks[cell] ? letter === '' : /^[A-Z]$/.test(letter))),
+    )
   );
 }

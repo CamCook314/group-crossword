@@ -9,9 +9,11 @@
     "dev:guest": "node build.mjs guest --serve",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "node e2e/run.mjs",
+    "e2e": "node e2e/run.mjs && node e2e/race.mjs",
     "firefox": "web-ext run -s extension/dist",
-    "sign": "web-ext sign -s extension/dist --channel unlisted"
+    "sign": "web-ext sign -s extension/dist --channel unlisted",
+    "e2e:coop": "node e2e/run.mjs",
+    "e2e:race": "node e2e/race.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

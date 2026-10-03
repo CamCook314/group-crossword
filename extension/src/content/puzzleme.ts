@@ -20,12 +20,21 @@ const LISTS: [string, Dir][] = [
   ['.dclues', 'D'],
 ];
 
+/** An element's own text, ignoring its child elements. */
+const ownText = (el: Element | null) =>
+  [...(el?.childNodes ?? [])]
+    .filter(n => n.nodeType === Node.TEXT_NODE)
+    .map(n => n.textContent)
+    .join('')
+    .trim();
+
 const clueItems = () =>
   LISTS.flatMap(([list, dir]) =>
     [...document.querySelectorAll(`${list} .clueDiv`)].map(div => ({
       div,
       dir,
-      num: Number(div.querySelector('.clueNum')?.textContent?.trim()),
+      // A linked clue shows the clue it links to inside its number: <div class="clueNum">4<div class="linkedClueNum">7</div></div>.
+      num: Number(ownText(div.querySelector('.clueNum'))),
     })),
   );
 

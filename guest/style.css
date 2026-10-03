@@ -197,3 +197,113 @@ input {
   margin: 0;
   font-size: 13px;
 }
+
+/* Race */
+.race-lobby,
+.race-results {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+.race-lobby h1,
+.race-results h1 {
+  margin: 0 0 8px;
+}
+.race-results h2 {
+  margin: 24px 0 8px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rules {
+  color: var(--muted);
+  padding-left: 18px;
+}
+.countdown {
+  font-size: 180px;
+  font-weight: 700;
+  text-align: center;
+  margin-top: 18vh;
+}
+.race-clock {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.race-clock .finished {
+  font-size: 17px;
+  font-weight: 600;
+}
+.penalty {
+  color: #d62728;
+}
+.notice {
+  background: color-mix(in srgb, #d62728 18%, var(--surface));
+  border-radius: 6px;
+  padding: 6px 14px;
+  margin: -4px 0 12px;
+}
+.notice.soft {
+  background: var(--surface);
+  color: var(--muted);
+}
+.progress {
+  margin-top: 16px;
+  display: grid;
+  gap: 6px;
+  max-width: 560px;
+}
+.progress-row {
+  display: grid;
+  grid-template-columns: 12px 90px 1fr 110px;
+  align-items: center;
+  gap: 8px;
+}
+.progress-row .who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.progress-row .bar {
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--fg) 10%, transparent);
+  overflow: hidden;
+}
+.progress-row .bar div {
+  height: 100%;
+}
+.progress-row .pct {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.standings {
+  padding-left: 22px;
+}
+.standings li {
+  padding: 2px 0;
+}
+.standings li.me {
+  font-weight: 600;
+}
+.standings .dot {
+  margin-right: 6px;
+}
+.standings .time {
+  margin-left: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.boards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.boards figure {
+  margin: 0;
+}
+.boards figcaption {
+  margin-top: 6px;
+}

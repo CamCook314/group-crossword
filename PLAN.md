@@ -4,6 +4,8 @@ Solve crosswords together on the sites we already use (Crosshare, Courier Mail) 
 The host plays on the real site in Firefox; friends join from a link and see a live copy of the puzzle,
 pick clues, and submit suggestions that the host accepts or rejects.
 
+Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.md).
+
 ## Decisions
 
 | Topic | Decision |
@@ -82,7 +84,7 @@ square selects it or flips direction, so back-to-back clicks otherwise misfire.
 | | Crosshare | PuzzleMe (Courier Mail's player; tested on Vox) |
 |---|---|---|
 | Grid | `[aria-label="cell{row}x{col}"]`; block if its parent's class has `__cellContainerBlock` | `.crossword > .box`; each row ends with `.endRow`; `.box.empty` = block |
-| Clues | `li[class*="ClueList"][class*="__item"]`: label "1A" + `__clueText` | `.aclues` / `.dclues` → `.clueDiv` with `.clueNum` and `.clue` |
+| Clues | `li[class*="ClueList"][class*="__item"]`: label "1A" + `__clueText` | `.aclues` / `.dclues` → `.clueDiv` with `.clueNum` (its own text only: a linked clue puts the clue it links to in a child) and `.clue` |
 | Current letters | cell `[class*="__contents"]` text | `.letter-in-box` text |
 | Host's current clue | `li[data-active="true"]` | `.clueDiv.hilited-clue` |
 | Select a cell | `.click()` on the cell | `mousedown` + `mouseup` on `.box` (`click()` alone does nothing) |

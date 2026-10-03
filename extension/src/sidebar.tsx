@@ -19,11 +19,22 @@ function App() {
   const [status, setStatus] = useState<SidebarStatus | null>(null);
   useEffect(() => connect(setStatus), []);
   if (!status) return null;
-  const { state, host, session, undo } = status;
+  const { state, host, session, undo, mode, pagePuzzle } = status;
   const { puzzle } = state;
+  const racing = status.racePhase === 'countdown' || status.racePhase === 'racing';
 
   return (
     <main>
+      <section>
+        <div class="modes" title={racing ? 'Finish or end the race first' : undefined}>
+          {(['coop', 'race'] as const).map(m => (
+            <button class={m === mode ? 'mode picked' : 'mode'} disabled={racing} onClick={() => send({ type: 'mode', mode: m })}>
+              {m === 'coop' ? 'Co-op' : 'Race'}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section>
         <h2>You</h2>
         <input
@@ -53,7 +64,7 @@ function App() {
 
       <section>
         <h2>Puzzle</h2>
-        <p>{puzzle ? `${puzzle.title} (${puzzle.cols}×${puzzle.rows})` : 'Open a crossword on Crosshare or Courier Mail.'}</p>
+        <p>{pagePuzzle ? `${pagePuzzle.title} (${pagePuzzle.cols}×${pagePuzzle.rows})` : 'Open a crossword on Crosshare or Courier Mail.'}</p>
         {status.answers !== null && (
           <p class="hint answers">
             Answers:{' '}
@@ -62,7 +73,21 @@ function App() {
         )}
       </section>
 
-      {session && (
+      {mode === 'race' && (
+        <section>
+          <h2>Race</h2>
+          <p class="hint">
+            {status.racePhase === 'lobby'
+              ? 'Set up and start the race from the race view.'
+              : status.racePhase === 'done'
+                ? 'The race is over.'
+                : 'Race in progress.'}
+          </p>
+          <button onClick={() => browser.tabs.create({ url: browser.runtime.getURL('race.html') })}>Open race view</button>
+        </section>
+      )}
+
+      {session && mode === 'coop' && (
         <section>
           <h2>Players</h2>
           <ul class="players">
@@ -79,7 +104,7 @@ function App() {
         </section>
       )}
 
-      {session && (
+      {session && mode === 'coop' && (
         <section>
           <h2>Suggestions</h2>
           {undo && (

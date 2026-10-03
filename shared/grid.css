@@ -110,3 +110,18 @@
   font: 700 11px/20px system-ui, sans-serif;
   text-align: center;
 }
+
+/* Small read-only boards (MiniBoard): race results and the host's race view */
+.board {
+  --size: 220px;
+}
+.board .cell {
+  cursor: default;
+}
+.board .letter {
+  font-size: 0.66em;
+  padding-top: 0.04em;
+}
+.cell.wrong {
+  background: color-mix(in srgb, #d62728 38%, var(--cell));
+}

@@ -37,6 +37,20 @@ copy doesn't work.
    **Undo accept** puts back whatever the last accepted suggestion changed. Identical suggestions from several people combine
    into one card at the top of the list.
 
+### Racing
+
+1. In the sidebar, switch to **Race** and press **Open race view** (a full page).
+2. Start the session there and send the link. People who join wait in the lobby.
+3. Pick the settings: whether racers see how far everyone else has got, and an optional time penalty (with a cooldown)
+   for a full grid that's wrong.
+4. **Start race**: a 3-2-1 countdown, then everyone races on their own grid. The race view shows every board with
+   % correct, times and places. **Play** opens your own racing window.
+5. The race ends when everyone has finished, or when you press **End race**; everyone then sees the results.
+   **New race** goes back to the lobby.
+
+Races need the puzzle's answers, which the extension reads from the page ("Answers: N squares ✓" on the race view).
+If you race yourself, don't look at the race view or the crossword tab while you do.
+
 ## Guests
 
 Open the link and pick a name and colour (the rainbow swatch opens a colour wheel). Click a clue or square and type to draft
@@ -51,7 +65,8 @@ shows once, in grey, top-right. Each player's initial sits next to the clue they
 | `npm run build` | Build the guest page (`guest/dist`) and extension (`extension/dist`) |
 | `npm run dev:guest` | Guest page with rebuild-on-save at `http://localhost:8000/#<room id>` |
 | `npm test` / `npm run typecheck` | Unit tests / type check |
-| `npm run e2e` | End-to-end check in real Firefox against live Crosshare and a free PuzzleMe (Vox) puzzle. Needs internet. `HEADED=1` to watch, `SHOTS=1` to save screenshots, `-- crosshare` or `-- puzzleme` for one site. |
+| `npm run e2e` | End-to-end checks in real Firefox against live Crosshare and a free PuzzleMe (Vox) puzzle: co-op, then a race. Needs internet. |
+| `npm run e2e:coop` / `npm run e2e:race` | Just one of them. `HEADED=1` to watch, `SHOTS=1` to save screenshots, `-- crosshare` or `-- puzzleme` for one site. |
 | `npm run firefox` | Run Firefox with the extension temporarily installed |
 
 Pushing to `main` deploys the guest page to https://camcook314.github.io/group-crossword/ (repo Settings → Pages → Source: GitHub Actions).

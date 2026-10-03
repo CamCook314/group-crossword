@@ -5,111 +5,13 @@
 //   npm run e2e -- puzzleme                   just one (crosshare | puzzleme)
 //
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the overlay and guest view.
-import { execSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
-import http from 'node:http';
-import { Builder, By, Key } from 'selenium-webdriver';
-import firefox from 'selenium-webdriver/firefox.js';
+import { writeFileSync } from 'node:fs';
+import { By, Key } from 'selenium-webdriver';
+import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, SITES, startGuestServer, step, until } from './helpers.mjs';
 
-const EXTENSION_ID = 'group-crossword@camcook314';
-const GUEST_PORT = 8123;
-
-/** How to open each test crossword, and how to find its cells, from the host's side. */
-const SITES = {
-  crosshare: {
-    async open(host) {
-      await host.get('https://crosshare.org/crosswords/3ytH7Kn9THCUVJgHtwRu/cryptic-51');
-      await (await until('Begin Puzzle button', () => host.findElement(By.xpath("//button[normalize-space(.)='Begin Puzzle']")))).click();
-    },
-    enter: async () => {},
-    cells: '[aria-label^="cell"]',
-    letter: '[class*="__contents"]',
-  },
-  // Vox's free crossword uses PuzzleMe, the same player Courier Mail embeds.
-  puzzleme: {
-    async open(host) {
-      await host.get('https://www.vox.com/crossword');
-      const picker = await until('PuzzleMe picker', () => host.findElement(By.css('iframe[src*="amuselabs"]')), 40000);
-      await host.switchTo().frame(picker);
-      await (await until('first puzzle', () => host.findElement(By.css('.puzzle-link')))).click();
-      await this.enter(host);
-      await until('Play button', async () => {
-        const play = (await host.findElements(By.xpath("//button[contains(translate(., 'PLAY', 'play'), 'play')]")))[0];
-        if (play && (await play.isDisplayed())) await play.click();
-        return (await host.findElements(By.css('.crossword .box'))).length > 0;
-      }, 30000);
-    },
-    async enter(host) {
-      await host.switchTo().defaultContent();
-      // The picker iframe navigates to the crossword in place, so its src attribute still says date-picker.
-      await host.switchTo().frame(await host.findElement(By.css('iframe[src*="amuselabs"]')));
-    },
-    cells: '.crossword > .box',
-    letter: '.letter-in-box',
-  },
-};
-
-const chosen = process.argv.slice(2).filter(a => a in SITES);
-const sites = chosen.length ? chosen : Object.keys(SITES);
-
-execSync('npx web-ext build -s extension/dist -a e2e/.artifacts -n group-crossword.zip --overwrite-dest', { stdio: 'ignore' });
-
-// Serve the built guest page locally.
-const server = http
-  .createServer((req, res) => {
-    const file = req.url === '/' ? 'index.html' : req.url.slice(1).split('?')[0];
-    try {
-      const type = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html';
-      res.writeHead(200, { 'content-type': type }).end(readFileSync(`guest/dist/${file}`));
-    } catch {
-      res.writeHead(404).end();
-    }
-  })
-  .listen(GUEST_PORT);
-
-async function launch(withExtension) {
-  const options = new firefox.Options();
-  if (!process.env.HEADED) options.addArguments('-headless');
-  // System access lets the test open the extension's sidebar page, which WebDriver can't navigate to directly.
-  const service = new firefox.ServiceBuilder().addArguments('--allow-system-access');
-  const driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).setFirefoxService(service).build();
-  if (withExtension) await driver.installAddon('e2e/.artifacts/group-crossword.zip', true);
-  return driver;
-}
-
-/** Polls until fn returns something truthy. */
-async function until(what, fn, timeout = 20000) {
-  const end = Date.now() + timeout;
-  let last;
-  while (Date.now() < end) {
-    try {
-      last = await fn();
-      if (last) return last;
-    } catch (e) {
-      last = e.message;
-    }
-    await new Promise(r => setTimeout(r, 250));
-  }
-  throw new Error(`Timed out waiting for: ${what} (last: ${JSON.stringify(last)})`);
-}
-
-/** Opens the sidebar page in a new tab. Call it while the browser has a single window. */
-async function openSidebarTab(driver) {
-  const before = await driver.getAllWindowHandles();
-  await driver.setContext(firefox.Context.CHROME);
-  await driver.executeScript(
-    `const url = WebExtensionPolicy.getByID(arguments[0]).getURL('sidebar.html');
-     const { gBrowser } = Services.wm.getMostRecentWindow('navigator:browser');
-     gBrowser.selectedTab = gBrowser.addTab(url, { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });`,
-    EXTENSION_ID,
-  );
-  await driver.setContext(firefox.Context.CONTENT);
-  const handle = await until('sidebar tab', async () => (await driver.getAllWindowHandles()).find(h => !before.includes(h)));
-  await driver.switchTo().window(handle);
-  return handle;
-}
-
-const step = msg => console.log(`  ✓ ${msg}`);
+const sites = chosenSites();
+buildExtension();
+const server = startGuestServer();
 const ANA_COLOR = '#12ab34';
 
 const host = await launch(true);
@@ -127,7 +29,7 @@ try {
   await until('session live', async () => (await host.findElement(By.css('.status')).getText()) === 'Live', 30000);
   const roomId = new URL(await host.findElement(By.css('.link input')).getAttribute('value')).hash.slice(1);
   async function join(guest, name, customColor) {
-    await guest.get(`http://localhost:${GUEST_PORT}/#${roomId}`);
+    await guest.get(guestUrl(roomId));
     await (await until('name box', () => guest.findElement(By.css('.join input')))).sendKeys(name);
     if (customColor) {
       await guest.findElement(By.css('.swatch[title="Any colour"]')).click();
@@ -183,6 +85,11 @@ try {
     const clueCount = (await sam.findElements(By.css('.clue-list li'))).length;
     if (clueCount < 20) throw new Error(`only ${clueCount} clues`);
     if ((await sam.findElement(By.css('.cell[data-cell="0"] .num')).getText()) !== '1') throw new Error('test assumes 1A and 1D start in cell 0');
+    // Clue numbers go up within each list (a linked clue once read "4" plus its link "7" as 47).
+    for (const list of await sam.findElements(By.css('.clue-list'))) {
+      const nums = (await Promise.all((await list.findElements(By.css('.n'))).map(n => n.getText()))).map(Number);
+      if (nums.some((n, i) => i > 0 && n <= nums[i - 1])) throw new Error(`clue numbers out of order: ${nums.join(', ')}`);
+    }
     step(`guests see the ${siteCellCount}-cell grid and ${clueCount} clues`);
 
     // The extension found this puzzle's answers (every white square), for race mode.

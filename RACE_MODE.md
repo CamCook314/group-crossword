@@ -149,8 +149,10 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
   penalties and cooldowns — unit tested. The cooldown uses the host's clock like all other timing.
 - Adapters gain `readAnswers(): string[] | null`: Crosshare from a fresh page fetch, PuzzleMe by unscrambling `rawc`
   (`shared/rawc.ts`); turning each site's data into answer grids and checking they fit the puzzle on screen in
-  `shared/answers.ts`. Both unit tested with made-up data (no real puzzles in the repo).
-- Background: the race phases, per-racer letters, timing. Co-op logic stays as it is.
+  `shared/answers.ts`. Both unit tested with made-up data (no real puzzles in the repo). The end-to-end test checks the
+  answers against each site's own Reveal.
+- [extension/src/raceHost.ts](extension/src/raceHost.ts): the race phases, per-racer letters, timing, and what racers
+  are allowed to see; unit tested. The background page wires it to the session. Co-op logic stays as it is.
 - The grid and clue lists in [guest/src/Board.tsx](guest/src/Board.tsx) move into `shared/` (with their CSS) so the
   guest page and the race view both use them, like [shared/ColorPicker.tsx](shared/ColorPicker.tsx). Co-op and race
   differ only in what typing does; the race view shows small read-only boards.
@@ -163,10 +165,10 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 | 0. Answers | Answer readers in both adapters; the sidebar shows "Answers: N squares ✓" | Works on Crosshare and Vox (e2e); the host confirms it on Courier Mail | ✅ Crosshare + Vox (e2e) and Courier Mail (host, via `npm run firefox`), 2026-10-03 |
 | 1. Race logic | `shared/race.ts` + tests | Unit tests pass | ✅ |
 | 2. Shared grid | Move the grid and clue lists into `shared/` | Co-op e2e still passes | ✅ |
-| 3. Hub + race view | Race phases, lobby + settings, Start/End, live boards with % correct, results | Racers in the lobby show on the race view; Start runs a countdown | |
-| 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / penalty + cooldown, finished, results | A full race works end to end | |
-| 5. Host plays | Play button and window | The host can race alongside guests | |
-| 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty and cooldown, late join, rejoin, places, results | `npm run e2e` passes | |
+| 3. Hub + race view | Race phases, lobby + settings, Start/End, live boards with % correct, results | Racers in the lobby show on the race view; Start runs a countdown | ✅ |
+| 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / penalty + cooldown, finished, results | A full race works end to end | ✅ |
+| 5. Host plays | Play button and window | The host can race alongside guests | ✅ (the Play window was checked in the e2e test; racing in it is the same as any racer) |
+| 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty and cooldown, late join, rejoin, places, results | `npm run e2e` passes | ✅ `npm run e2e:race`, both sites, 2026-10-03. Ending by itself when everyone has finished is unit tested only |
 | 7. Ship | Docs, version bump, merge to `main`, deploy, sign | Used in a real race | |
 
 ## Branching

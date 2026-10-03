@@ -169,3 +169,28 @@ button.secondary {
   font-size: 11px;
   background: color-mix(in srgb, var(--fg) 12%, transparent);
 }
+.modes {
+  display: flex;
+}
+.mode {
+  flex: 1;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--line);
+  border-radius: 0;
+}
+.mode:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.mode:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.mode.picked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.mode:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

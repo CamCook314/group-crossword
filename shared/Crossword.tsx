@@ -187,3 +187,12 @@ export function ClueLists({
     </div>
   );
 }
+
+/** A small read-only board: just the letters, with wrong ones marked if `status` is given. */
+export function MiniBoard({ puzzle, letters, status }: { puzzle: Puzzle; letters: string[]; status?: ('' | 'right' | 'wrong')[] }) {
+  return (
+    <div class="board">
+      <Grid puzzle={puzzle} cellClass={cell => status?.[cell] ?? ''} renderCell={cell => <span class="letter">{letters[cell]}</span>} />
+    </div>
+  );
+}

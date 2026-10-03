@@ -38,13 +38,14 @@ if (want('guest')) {
 if (want('extension')) {
   rmSync('extension/dist', { recursive: true, force: true });
   mkdirSync('extension/dist', { recursive: true });
-  for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
+  for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'race.html', 'race.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
   cpSync('shared/grid.css', 'extension/dist/grid.css');
   await esbuild.build({
     ...common,
     entryPoints: {
       background: 'extension/src/background.ts',
       sidebar: 'extension/src/sidebar.tsx',
+      race: 'extension/src/race.tsx',
       'content-crosshare': 'extension/src/content/crosshare.ts',
       'content-puzzleme': 'extension/src/content/puzzleme.ts',
     },

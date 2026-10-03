@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, isFull, isSolved, newRacer, places, progress, raceTime, squareStatus, updateLetters, type Racer } from './race';
+import { DEFAULT_SETTINGS, formatTime, isFull, ordinal, isSolved, newRacer, places, progress, raceTime, squareStatus, updateLetters, type Racer } from './race';
 
 // 3x3 ring (CAT / O#O / WET), with an alternate solution that has B for the T in the top-right corner.
 const main = ['C', 'A', 'T', 'O', '', 'O', 'W', 'E', 'T'];
@@ -75,5 +75,14 @@ describe('times and places', () => {
     ]);
     expect(raceTime(racers.get('quick but penalised')!, 0)).toBe(160_000);
     expect(places(racers, 0)).toEqual(new Map([['steady', 1], ['tied', 1], ['quick but penalised', 3]]));
+  });
+});
+
+describe('formatting times', () => {
+  it('shows minutes and seconds, and hours when needed', () => {
+    expect(formatTime(0)).toBe('0:00');
+    expect(formatTime(245_999)).toBe('4:05');
+    expect(formatTime(3_723_000)).toBe('1:02:03');
+    expect([1, 2, 3, 4, 11, 12, 13, 21, 22, 101].map(ordinal)).toEqual(['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st']);
   });
 });

@@ -90,3 +90,16 @@ export function places(racers: Map<string, Racer>, startedAt: number): Map<strin
   times.sort((a, b) => a.time - b.time);
   return new Map(times.map(({ id, time }) => [id, times.findIndex(t => t.time === time) + 1]));
 }
+
+/** "4:05", or "1:02:03" past an hour. */
+export function formatTime(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const two = (n: number) => String(n).padStart(2, '0');
+  return s >= 3600 ? `${Math.floor(s / 3600)}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}` : `${Math.floor(s / 60)}:${two(s % 60)}`;
+}
+
+/** 1st, 2nd, 3rd, 4th … 11th, 12th, 13th … 21st. */
+export function ordinal(n: number): string {
+  const teen = n % 100 >= 11 && n % 100 <= 13;
+  return n + (teen ? 'th' : (['th', 'st', 'nd', 'rd'][n % 10] ?? 'th'));
+}

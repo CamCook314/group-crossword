@@ -1,7 +1,9 @@
 // Messages between the parts of the extension (content script, background page, sidebar).
 import type { Solutions } from '../../shared/answers';
-import type { RoomState } from '../../shared/protocol';
+import type { Player, RacePhase, RaceResults, RoomState } from '../../shared/protocol';
 import type { Puzzle } from '../../shared/puzzle';
+import type { RaceSettings } from '../../shared/race';
+import type { RacerDetail } from './raceHost';
 
 /** What a crossword page currently shows. Sent by the content script whenever it changes. */
 export interface PageSnapshot {
@@ -26,7 +28,15 @@ export interface HostProfile {
   color: string;
 }
 
+export type Mode = 'coop' | 'race';
+
+/** The crossword open on the site. */
+export type PagePuzzle = { title: string; rows: number; cols: number } | null;
+
 export interface SidebarStatus {
+  mode: Mode;
+  racePhase: RacePhase;
+  pagePuzzle: PagePuzzle;
   state: RoomState;
   host: HostProfile;
   session: { link: string; status: string } | null;
@@ -42,4 +52,31 @@ export type FromSidebar =
   /** A suggestion card: everyone who suggested these exact letters for this clue. */
   | { type: 'accept' | 'reject'; clueId: string; letters: string[] }
   | { type: 'undo' }
-  | { type: 'host'; host: HostProfile };
+  | { type: 'host'; host: HostProfile }
+  | { type: 'mode'; mode: Mode };
+
+/** Everything the host's race view shows. */
+export interface RaceViewStatus {
+  host: HostProfile;
+  session: { link: string; status: string } | null;
+  /** The crossword open on the site: the one the next race will use. */
+  pagePuzzle: PagePuzzle;
+  answers: SidebarStatus['answers'];
+  phase: RacePhase;
+  settings: RaceSettings;
+  /** The race's puzzle, fixed when it started. */
+  puzzle: Puzzle | null;
+  goAt: number | null;
+  endedAt: number | null;
+  /** Everyone who has joined (not the host). */
+  players: Player[];
+  racers: RacerDetail[];
+  results: RaceResults | null;
+}
+
+export type FromRaceView =
+  | { type: 'start-session' }
+  | { type: 'settings'; settings: RaceSettings }
+  | { type: 'start' }
+  | { type: 'end' }
+  | { type: 'new-race' };

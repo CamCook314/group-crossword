@@ -1,10 +1,11 @@
-// The host's hub: holds the session, talks to the guests over WebRTC, to the crossword page, and to the sidebar.
+// The host's hub: holds the session, talks to the guests over WebRTC, to the crossword page, the sidebar and the race view.
 import { Peer, type DataConnection } from 'peerjs';
 import { COLORS, GUEST_URL, parseGuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../shared/protocol';
 import { puzzleKey } from '../../shared/puzzle';
 import { cellsToApply, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
 import type { Solutions } from '../../shared/answers';
-import type { FromAdapter, FromSidebar, HostProfile, PageSnapshot, SidebarStatus, ToAdapter } from './messages';
+import type { FromAdapter, FromRaceView, FromSidebar, HostProfile, Mode, PageSnapshot, RaceViewStatus, SidebarStatus, ToAdapter } from './messages';
+import { RaceHost } from './raceHost';
 
 const HOST_ID = 'host';
 
@@ -22,6 +23,9 @@ let page: PageSnapshot | null = null;
 let answers: { puzzleKey: string; solutions: Solutions | null } | null = null;
 let adapter: browser.runtime.Port | null = null;
 const sidebars = new Set<browser.runtime.Port>();
+const raceViews = new Set<browser.runtime.Port>();
+let mode: Mode = 'coop';
+const race = new RaceHost(() => update());
 const guests = new Map<string, Player>();
 let suggestions: Suggestion[] = [];
 let session: Session | null = null;
@@ -34,27 +38,64 @@ browser.storage.local.get('host').then(stored => {
 });
 
 function roomState(): RoomState {
+  if (mode === 'race') {
+    return {
+      mode,
+      puzzle: race.puzzle, // only set once the countdown starts
+      letters: [],
+      players: [...guests.values()],
+      suggestions: [],
+      race: race.stateForRacers(Date.now()),
+    };
+  }
   return {
+    mode,
     puzzle: page?.puzzle ?? null,
     letters: page?.letters ?? [],
     players: [{ id: HOST_ID, ...host, clueId: page?.clueId ?? null, host: true, online: true }, ...guests.values()],
     suggestions,
+    race: null,
   };
 }
+
+const onlineIds = () => [...guests.values()].filter(p => p.online).map(p => p.id);
+const link = () => session && { link: GUEST_URL + '#' + session.roomId, status: session.status };
 
 /** Pushes the current state everywhere. Called after every change. */
 function update() {
   suggestions = pruneSuggestions(suggestions, page?.puzzle ?? null, page?.letters ?? []);
   const state = roomState();
+  const pagePuzzle = page && { title: page.puzzle.title, rows: page.puzzle.rows, cols: page.puzzle.cols };
   const status: SidebarStatus = {
+    mode,
+    racePhase: race.phase,
+    pagePuzzle,
     state,
     host,
-    session: session && { link: GUEST_URL + '#' + session.roomId, status: session.status },
+    session: link(),
     undo: lastAccept && { playerIds: lastAccept.playerIds, clueId: lastAccept.clueId },
     answers: answerStatus(),
   };
   for (const port of sidebars) port.postMessage(status);
-  adapter?.postMessage({ type: 'overlay', state: session ? state : null } satisfies ToAdapter);
+  if (raceViews.size) {
+    const view: RaceViewStatus = {
+      host,
+      session: link(),
+      pagePuzzle,
+      answers: answerStatus(),
+      phase: race.phase,
+      settings: race.settings,
+      puzzle: race.puzzle,
+      goAt: race.goAt,
+      endedAt: race.endedAt,
+      players: [...guests.values()],
+      racers: race.details(),
+      results: race.results,
+    };
+    for (const port of raceViews) port.postMessage(view);
+  }
+  // The overlay on the real crossword is for co-op only.
+  adapter?.postMessage({ type: 'overlay', state: session && mode === 'coop' ? state : null } satisfies ToAdapter);
   if (session) sendToGuests({ t: 'state', state });
 }
 
@@ -109,6 +150,7 @@ function startSession() {
       s.conns.delete(conn);
       const player = clientId ? guests.get(clientId) : undefined;
       if (player && ![...s.conns.values()].includes(clientId!)) player.online = false;
+      if (race.running && race.allFinished(onlineIds())) race.end(Date.now());
       update();
     });
   });
@@ -121,6 +163,7 @@ function stopSession() {
   guests.clear();
   suggestions = [];
   lastAccept = null;
+  race.reset();
   update();
 }
 
@@ -131,14 +174,26 @@ function onGuestMessage(s: Session, conn: DataConnection, data: unknown) {
     s.conns.set(conn, msg.clientId);
     const previous = guests.get(msg.clientId);
     guests.set(msg.clientId, { id: msg.clientId, name: msg.name, color: msg.color, clueId: previous?.clueId ?? null, host: false, online: true });
+    // Joining mid-race: a late joiner starts empty; someone coming back gets their grid back (sent after the state,
+    // which carries the puzzle).
+    const restore = mode === 'race' ? race.join(msg.clientId) : null;
     update();
+    if (restore) sendToGuests({ t: 'race-letters', letters: restore }, msg.clientId);
     return;
   }
   const clientId = s.conns.get(conn);
   const player = clientId ? guests.get(clientId) : undefined;
   if (!player) return;
-  if (msg.t === 'select') player.clueId = msg.clueId;
-  if (msg.t === 'suggest') suggestions = upsertSuggestion(suggestions, { playerId: player.id, clueId: msg.clueId, letters: msg.letters });
+  if (mode === 'coop') {
+    if (msg.t === 'select') player.clueId = msg.clueId;
+    if (msg.t === 'suggest') suggestions = upsertSuggestion(suggestions, { playerId: player.id, clueId: msg.clueId, letters: msg.letters });
+  }
+  if (mode === 'race' && msg.t === 'race-letters') {
+    const now = Date.now();
+    const notQuite = race.letters(player.id, msg.letters, now);
+    if (notQuite) sendToGuests({ t: 'not-quite', ...notQuite }, player.id);
+    if (race.allFinished(onlineIds())) race.end(now);
+  }
   update();
 }
 
@@ -151,6 +206,11 @@ function onSidebarMessage(msg: FromSidebar) {
     case 'host':
       host = msg.host;
       browser.storage.local.set({ host });
+      return update();
+    case 'mode':
+      if (race.running) return; // finish or end the race first
+      mode = msg.mode;
+      race.reset();
       return update();
     case 'accept': {
       // Everyone who made this exact suggestion.
@@ -183,6 +243,34 @@ function onSidebarMessage(msg: FromSidebar) {
   }
 }
 
+function onRaceViewMessage(msg: FromRaceView) {
+  const now = Date.now();
+  switch (msg.type) {
+    case 'start-session':
+      return startSession();
+    case 'settings': {
+      if (race.running) return;
+      const penaltySeconds = Math.max(0, Math.min(600, Math.round(Number(msg.settings.penaltySeconds) || 0)));
+      race.settings = { showOthersProgress: Boolean(msg.settings.showOthersProgress), penaltySeconds };
+      return update();
+    }
+    case 'start': {
+      // A race uses the crossword open on the site, and needs its answers and someone to race.
+      const solutions = page && answers?.puzzleKey === puzzleKey(page.puzzle) ? answers.solutions : null;
+      if (mode !== 'race' || race.running || !session || !page || !solutions || !onlineIds().length) return;
+      race.start(page.puzzle, solutions, onlineIds(), now);
+      return update();
+    }
+    case 'end':
+      race.end(now);
+      return update();
+    case 'new-race':
+      if (race.running) return;
+      race.reset();
+      return update();
+  }
+}
+
 browser.runtime.onConnect.addListener(port => {
   if (port.name === 'adapter') {
     port.onMessage.addListener(m => {
@@ -204,6 +292,12 @@ browser.runtime.onConnect.addListener(port => {
     port.onDisconnect.addListener(() => {
       if (adapter === port) adapter = null;
     });
+  }
+  if (port.name === 'race') {
+    raceViews.add(port);
+    port.onMessage.addListener(m => onRaceViewMessage(m as FromRaceView));
+    port.onDisconnect.addListener(() => raceViews.delete(port));
+    update();
   }
   if (port.name === 'sidebar') {
     sidebars.add(port);

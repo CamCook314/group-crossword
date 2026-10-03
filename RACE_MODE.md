@@ -15,7 +15,7 @@ file stands on its own.
 | Who holds the answers | Only the host's extension. Racers send their letters to the host, which checks them. Answers reach racers only once the race is over. |
 | Host's views | A full-page **race view** (extension page) with every racer's live board, **% correct**, time and place, plus the lobby controls. The host's own racing window is a normal racer view. |
 | What racers see | Their own grid and timer, and the others' **% filled** (lobby setting, on by default). Never % correct: that would work as an answer checker. |
-| Full but wrong grid | "Not quite — keep going", no hint where. Lobby setting: optional time penalty (see Lobby settings). |
+| Full but wrong grid | "Not quite — keep going", no hint where. Lobby setting: optional time penalty with a cooldown (see Lobby settings). |
 | After the race | Everyone sees a correct solution — the winner's board, or the answer grid if nobody finished — and then every player's final board. |
 | Late joiners | Allowed: they start with an empty grid and the race clock already running. |
 | Timing | One clock, the host's. |
@@ -50,7 +50,19 @@ Set by the host on the race view before starting; sent to racers with the room s
 | Setting | Default | |
 |---|---|---|
 | Show others' progress | On | Racers see a "% filled" bar for each other racer. |
-| Wrong-grid penalty | Off | **Off:** a racer's grid is checked automatically when it's full. **On (N seconds):** racers press **Submit** to check; each wrong submit adds N seconds to their time. (Auto-checking with a penalty would penalise every letter fixed in a full grid.) *To confirm.* |
+| Wrong-grid penalty | Off, 30 s when on | Adds N seconds to a racer's time for a wrong grid, with an N-second cooldown (see below). |
+
+**Checking and the penalty.** A racer's grid is checked whenever one of their changes leaves it full (no Submit button).
+- Correct → finished, immediately, cooldown or not.
+- Wrong → "Not quite — keep going", every time.
+- With the penalty on, a wrong check also adds N seconds, unless a penalty was given in the last N seconds. Quick fixes
+  during the cooldown are free.
+- A penalty only ever follows a change: sitting and thinking with a full, wrong grid isn't penalised when the cooldown
+  runs out, only the next wrong change is.
+- Racers see "Not quite — +30 s" when a penalty is added and a countdown to when they can be penalised again; the race
+  view and the results show each racer's penalties.
+- Known loophole, accepted: during a cooldown someone can cycle a doubtful square through letters for free. It's still
+  stricter than playing with the penalty off, where every check is free.
 
 ## Answers
 
@@ -114,7 +126,7 @@ host the answers.
 - **Countdown:** 3-2-1 over a blank grid.
 - **Racing:** the same grid and clue lists as co-op (keyboard, clicking, highlighting), but typing goes straight into
   your own grid: no drafts, no suggestions, no corner letters. A timer, and the others' % filled if the host allows it.
-  A **Submit** button when penalties are on.
+  "Not quite" (and any penalty, with its cooldown) when a full grid is wrong.
 - **Finished:** your time and place, and how others are doing.
 - **Results:** places and times; the solution (the winner's board, or the answer grid if nobody finished); then every
   player's final board.
@@ -124,17 +136,17 @@ host the answers.
 Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 
 - Room state gains `mode: 'coop' | 'race'` and a `race` section: `phase` (`lobby` → `countdown` → `racing` → `done`),
-  `settings`, and per racer `filled`, `total`, `finishedMs`, `penaltyMs`, `place`. Racers never get `correct`.
+  `settings`, and per racer `filled`, `total`, `finishedMs`, `penaltyMs`, `cooldownUntil`, `place`. Racers never get `correct`.
 - Host → racer: `race-start` (puzzle without answers + ms until go; also sent to late joiners), `not-quite`,
   `race-results` (places, times, the solution board, every racer's final letters).
-- Racer → host: `race-letters` (their whole grid), `race-submit` (penalty mode). Validated like the other guest messages.
+- Racer → host: `race-letters` (their whole grid). Validated like the other guest messages.
 - Background → race view (extension messaging, not the network): everything, including each racer's letters and
   per-square status.
 
 ## Code structure
 
 - `shared/race.ts`: pure functions — progress, per-square status, solved check (with alternate solutions), places,
-  penalties — unit tested.
+  penalties and cooldowns — unit tested. The cooldown uses the host's clock like all other timing.
 - Adapters gain `readAnswers(): string[] | null`: Crosshare from a fresh page fetch, PuzzleMe by unscrambling `rawc`
   (`shared/rawc.ts`, with a unit test on a saved sample).
 - Background: the race phases, per-racer letters, timing. Co-op logic stays as it is.
@@ -151,9 +163,9 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
 | 1. Race logic | `shared/race.ts` + tests | Unit tests pass |
 | 2. Shared grid | Move the grid and clue lists into `shared/` | Co-op e2e still passes |
 | 3. Hub + race view | Race phases, lobby + settings, Start/End, live boards with % correct, results | Racers in the lobby show on the race view; Start runs a countdown |
-| 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / Submit, finished, results | A full race works end to end |
+| 4. Racer's page | Lobby, countdown, racing, others' % filled, not-quite / penalty + cooldown, finished, results | A full race works end to end |
 | 5. Host plays | Play button and window | The host can race alongside guests |
-| 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty, late join, rejoin, places, results | `npm run e2e` passes |
+| 6. End-to-end test | Host + 2 racers on Crosshare and Vox: correct finish, wrong grid, penalty and cooldown, late join, rejoin, places, results | `npm run e2e` passes |
 | 7. Ship | Docs, version bump, merge to `main`, deploy, sign | Used in a real race |
 
 ## Branching
@@ -164,8 +176,3 @@ branch means co-op keeps working for real sessions while race mode is half-built
 
 The catch: only `main` deploys, so friends can't try race mode until it's merged. Until then it's tested locally
 (`npm run e2e`, or `npm run firefox` plus `npm run dev:guest`).
-
-## Open question
-
-- **Wrong-grid penalty:** is the setting meant as a time penalty, with a Submit button when it's on (as above)? If so,
-  what default penalty: 30 seconds?

@@ -1,5 +1,7 @@
 // Amuse Labs' PuzzleMe player, which Courier Mail embeds in an iframe.
+import { puzzleMeSolutions } from '../../../shared/answers';
 import { buildPuzzle, type Dir } from '../../../shared/puzzle';
+import { decodeRawc } from '../../../shared/rawc';
 import { runAdapter, type SiteAdapter } from './run';
 
 function grid() {
@@ -66,6 +68,15 @@ const adapter: SiteAdapter = {
       // Typed letters arrive as input events, but Delete is a keydown; it clears the selected square.
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true, cancelable: true }));
     }
+  },
+
+  async readAnswers() {
+    // The whole puzzle, answers included, is embedded scrambled as "rawc": usually a page variable (which Firefox
+    // content scripts reach through wrappedJSObject), sometimes inside a JSON script tag.
+    const page = (window as unknown as { wrappedJSObject?: { puzzleEnv?: { rawc?: unknown }; rawc?: unknown } }).wrappedJSObject;
+    const params = document.getElementById('params')?.textContent;
+    const rawc = page?.puzzleEnv?.rawc ?? page?.rawc ?? (params ? JSON.parse(params).rawc : undefined);
+    return typeof rawc === 'string' ? puzzleMeSolutions(decodeRawc(rawc)) : null;
   },
 };
 

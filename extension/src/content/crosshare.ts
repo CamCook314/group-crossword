@@ -1,5 +1,6 @@
 // Crosshare (crosshare.org). Its class names are CSS-module hashes like
 // "Cell-module__JMEMxa__cellContainer", so we only match on the stable part.
+import { crosshareSolutions } from '../../../shared/answers';
 import { buildPuzzle, type Dir } from '../../../shared/puzzle';
 import { runAdapter, type SiteAdapter } from './run';
 
@@ -53,6 +54,15 @@ const adapter: SiteAdapter = {
     // Crosshare listens for keydown on window; it ignores events dispatched on window itself, so send it via body.
     // Delete clears the selected square without moving.
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: letter || 'Delete', bubbles: true, cancelable: true }));
+  },
+
+  async readAnswers() {
+    // The page's JSON holds the answers, but the copy in the DOM goes stale after in-app navigation,
+    // so fetch the current page again.
+    const html = await (await fetch(location.href)).text();
+    const json = new DOMParser().parseFromString(html, 'text/html').getElementById('__NEXT_DATA__')?.textContent;
+    const puzzle = json ? JSON.parse(json).props?.pageProps?.puzzle : null;
+    return Array.isArray(puzzle?.grid) ? crosshareSolutions(puzzle) : null;
   },
 };
 

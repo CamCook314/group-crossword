@@ -185,6 +185,12 @@ try {
     if ((await sam.findElement(By.css('.cell[data-cell="0"] .num')).getText()) !== '1') throw new Error('test assumes 1A and 1D start in cell 0');
     step(`guests see the ${siteCellCount}-cell grid and ${clueCount} clues`);
 
+    // The extension found this puzzle's answers (every white square), for race mode.
+    const whiteSquares = (await sam.findElements(By.css('.grid .cell:not(.block)'))).length;
+    await sidebar();
+    await until(`sidebar shows ${whiteSquares} answers`, async () => (await host.findElement(By.css('.answers')).getText()) === `Answers: ${whiteSquares} squares ✓`, 30000);
+    step(`the extension read the answers: ${whiteSquares} squares`);
+
     // Host types on the real site.
     await onSite();
     await (await host.findElements(By.css(site.cells)))[0].click();

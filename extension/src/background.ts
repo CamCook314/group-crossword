@@ -3,7 +3,8 @@ import { Peer, type DataConnection } from 'peerjs';
 import { COLORS, GUEST_URL, parseGuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../shared/protocol';
 import { puzzleKey } from '../../shared/puzzle';
 import { cellsToApply, pruneSuggestions, sameLetters, upsertSuggestion } from '../../shared/suggestions';
-import type { FromSidebar, HostProfile, PageSnapshot, SidebarStatus, ToAdapter } from './messages';
+import type { Solutions } from '../../shared/answers';
+import type { FromAdapter, FromSidebar, HostProfile, PageSnapshot, SidebarStatus, ToAdapter } from './messages';
 
 const HOST_ID = 'host';
 
@@ -17,6 +18,8 @@ interface Session {
 
 let host: HostProfile = { name: 'Host', color: COLORS[0] };
 let page: PageSnapshot | null = null;
+/** The answers the page reported, for the puzzle with this key. Kept here only: never part of the room state. */
+let answers: { puzzleKey: string; solutions: Solutions | null } | null = null;
 let adapter: browser.runtime.Port | null = null;
 const sidebars = new Set<browser.runtime.Port>();
 const guests = new Map<string, Player>();
@@ -48,10 +51,17 @@ function update() {
     host,
     session: session && { link: GUEST_URL + '#' + session.roomId, status: session.status },
     undo: lastAccept && { playerIds: lastAccept.playerIds, clueId: lastAccept.clueId },
+    answers: answerStatus(),
   };
   for (const port of sidebars) port.postMessage(status);
   adapter?.postMessage({ type: 'overlay', state: session ? state : null } satisfies ToAdapter);
   if (session) sendToGuests({ t: 'state', state });
+}
+
+function answerStatus(): SidebarStatus['answers'] {
+  if (!page) return null;
+  if (answers?.puzzleKey !== puzzleKey(page.puzzle)) return 'reading';
+  return answers.solutions ? answers.solutions[0].filter(Boolean).length : 'none';
 }
 
 function sendToGuests(msg: HostMessage, onlyClientId?: string) {
@@ -176,14 +186,18 @@ function onSidebarMessage(msg: FromSidebar) {
 browser.runtime.onConnect.addListener(port => {
   if (port.name === 'adapter') {
     port.onMessage.addListener(m => {
-      const snapshot = m as PageSnapshot;
+      const msg = m as FromAdapter;
       // Whichever crossword page reported most recently is the one we use.
       adapter = port;
-      if (page && puzzleKey(page.puzzle) !== puzzleKey(snapshot.puzzle)) {
-        suggestions = [];
-        lastAccept = null;
+      if (msg.type === 'answers') answers = { puzzleKey: msg.puzzleKey, solutions: msg.solutions };
+      if (msg.type === 'page') {
+        const { type, ...snapshot } = msg;
+        if (page && puzzleKey(page.puzzle) !== puzzleKey(snapshot.puzzle)) {
+          suggestions = [];
+          lastAccept = null;
+        }
+        page = snapshot;
       }
-      page = snapshot;
       update();
     });
     // Keep the last page state if the tab goes away (e.g. the host reloads), so guests still see the grid.

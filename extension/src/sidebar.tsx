@@ -54,6 +54,12 @@ function App() {
       <section>
         <h2>Puzzle</h2>
         <p>{puzzle ? `${puzzle.title} (${puzzle.cols}×${puzzle.rows})` : 'Open a crossword on Crosshare or Courier Mail.'}</p>
+        {status.answers !== null && (
+          <p class="hint answers">
+            Answers:{' '}
+            {status.answers === 'reading' ? 'reading…' : status.answers === 'none' ? 'not found' : `${status.answers} squares ✓`}
+          </p>
+        )}
       </section>
 
       {session && (

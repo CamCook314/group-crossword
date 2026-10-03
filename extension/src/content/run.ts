@@ -1,6 +1,8 @@
 // Shared plumbing for the per-site content scripts: watches the page, reports it to the
-// background page, draws the overlay, and types accepted answers.
-import type { PageSnapshot, ToAdapter } from '../messages';
+// background page, reads the answers, draws the overlay, and types accepted answers.
+import { solutionsFit, type Solutions } from '../../../shared/answers';
+import { puzzleKey } from '../../../shared/puzzle';
+import type { FromAdapter, PageSnapshot, ToAdapter } from '../messages';
 import { Overlay } from './overlay';
 
 export interface SiteAdapter {
@@ -14,13 +16,27 @@ export interface SiteAdapter {
   badgeSide: 'left' | 'right';
   /** Selects a cell on the site and types a letter into it, or clears it if letter is ''. */
   setLetter(cell: number, letter: string): void;
+  /** The puzzle's answers from the data the site embeds, or null if they aren't there. */
+  readAnswers(): Promise<Solutions | null>;
 }
 
 export function runAdapter(adapter: SiteAdapter) {
   let overlay: Overlay | null = null; // created once a crossword shows up
   let port: browser.runtime.Port | null = null;
   let lastSent = '';
+  let answersFor = ''; // puzzleKey of the puzzle we last read answers for
   let typing = Promise.resolve();
+  const send = (msg: FromAdapter) => port?.postMessage(msg);
+
+  async function sendAnswers(snapshot: PageSnapshot) {
+    const key = puzzleKey(snapshot.puzzle);
+    let solutions: Solutions | null = null;
+    try {
+      solutions = await adapter.readAnswers();
+    } catch {}
+    // Only answers that match the puzzle on screen (guards against stale page data).
+    send({ type: 'answers', puzzleKey: key, solutions: solutions && solutionsFit(snapshot.puzzle, solutions) ? solutions : null });
+  }
 
   async function applyLetters(cells: { cell: number; letter: string }[]) {
     for (const { cell, letter } of cells) {
@@ -41,6 +57,7 @@ export function runAdapter(adapter: SiteAdapter) {
     });
     p.onDisconnect.addListener(() => {
       port = null;
+      answersFor = ''; // a new connection needs them again
       overlay?.setState(null);
     });
     return p;
@@ -53,7 +70,11 @@ export function runAdapter(adapter: SiteAdapter) {
     if (port && json === lastSent) return;
     port ??= connect();
     lastSent = json;
-    port.postMessage(snapshot);
+    send({ type: 'page', ...snapshot });
+    if (puzzleKey(snapshot.puzzle) !== answersFor) {
+      answersFor = puzzleKey(snapshot.puzzle);
+      sendAnswers(snapshot);
+    }
   }
 
   let queued = false;

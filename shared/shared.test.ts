@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { parseGuestMessage, type Player, type Suggestion } from './protocol';
+import { hexToHsv, hsvToHex, textOn } from './color';
+import { COLORS, parseGuestMessage, type Player, type Suggestion } from './protocol';
 import { buildPuzzle, clueAt, layoutEntries } from './puzzle';
 import { cellsToApply, clashes, cornerMarks, pruneSuggestions, upsertSuggestion } from './suggestions';
 
@@ -73,14 +74,38 @@ describe('suggestions', () => {
     expect(clashes(puzzle, letters, s('a', '1A', ['C', 'O', '']))).toEqual([false, true, false]);
   });
 
-  it('puts one corner letter per player in player order, with +N past three', () => {
-    const players = [player('a', '#aaaaaa'), player('b', '#bbbbbb'), player('c', '#cccccc'), player('d', '#dddddd')];
+  it('puts one corner letter per player, in the order the suggestions were made', () => {
+    const players = [player('a', '#aaaaaa'), player('b', '#bbbbbb')];
     const marks = cornerMarks(puzzle, [s('b', '1A', ['X', '', '']), s('a', '1D', ['Y', '', ''])], players);
-    expect(marks.get(0)).toEqual([{ text: 'Y', color: '#aaaaaa' }, { text: 'X', color: '#bbbbbb' }]);
+    expect(marks.get(0)).toEqual([{ text: 'X', color: '#bbbbbb' }, { text: 'Y', color: '#aaaaaa' }]);
     expect(marks.has(1)).toBe(false);
 
+    // A player's newer letter for the same cell keeps their place.
+    const again = cornerMarks(puzzle, [s('b', '1A', ['X', '', '']), s('a', '1D', ['Y', '', '']), s('b', '1D', ['Z', '', ''])], players);
+    expect(again.get(0)!.map(m => m.text)).toEqual(['Z', 'Y']);
+  });
+
+  it('shows four corner letters, then +N', () => {
+    const players = ['a', 'b', 'c', 'd', 'e'].map(id => player(id));
     const four = cornerMarks(puzzle, ['a', 'b', 'c', 'd'].map(id => s(id, '1A', ['Q', '', ''])), players);
-    expect(four.get(0)!.map(m => m.text)).toEqual(['Q', 'Q', '+2']);
+    expect(four.get(0)!.map(m => m.text)).toEqual(['Q', 'Q', 'Q', 'Q']);
+    const five = cornerMarks(puzzle, ['a', 'b', 'c', 'd', 'e'].map(id => s(id, '1A', ['Q', '', ''])), players);
+    expect(five.get(0)!.map(m => m.text)).toEqual(['Q', 'Q', 'Q', '+2']);
+  });
+});
+
+describe('colours', () => {
+  it('converts between HSV and hex', () => {
+    expect(hsvToHex({ h: 0, s: 1, v: 1 })).toBe('#ff0000');
+    expect(hsvToHex({ h: 120, s: 1, v: 1 })).toBe('#00ff00');
+    expect(hsvToHex({ h: 240, s: 1, v: 0.5 })).toBe('#000080');
+    expect(hsvToHex({ h: 77, s: 0, v: 1 })).toBe('#ffffff');
+    for (const c of COLORS) expect(hsvToHex(hexToHsv(c))).toBe(c);
+  });
+
+  it('picks readable text for a background', () => {
+    expect(textOn('#ffff00')).toBe('#000000');
+    expect(textOn('#1f77b4')).toBe('#ffffff');
   });
 });
 

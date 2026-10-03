@@ -1,5 +1,6 @@
 // Draws other players' suggestions and clue badges on top of the real crossword.
 // Mouse events pass straight through to the site.
+import { textOn } from '../../../shared/color';
 import type { RoomState } from '../../../shared/protocol';
 import { cornerMarks } from '../../../shared/suggestions';
 import type { SiteAdapter } from './run';
@@ -7,8 +8,9 @@ import type { SiteAdapter } from './run';
 const STYLE = `
   :host { all: initial; }
   .layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147483647; font-family: system-ui, sans-serif; }
-  .mark { position: fixed; font-weight: 800; line-height: 1; opacity: 0.85; text-shadow: 0 0 3px rgba(255, 255, 255, 0.8); }
-  .badge { position: fixed; width: 18px; height: 18px; border-radius: 50%; color: #fff; font: 700 11px/18px system-ui, sans-serif;
+  .mark { position: absolute; font-family: ui-monospace, 'Cascadia Mono', Consolas, 'Courier New', monospace; font-weight: 800;
+          line-height: 1; opacity: 0.9; }
+  .badge { position: absolute; width: 18px; height: 18px; border-radius: 50%; font: 700 11px/18px system-ui, sans-serif;
            text-align: center; box-shadow: 0 0 0 2px #fff; }
 `;
 
@@ -53,13 +55,22 @@ export class Overlay {
       for (const [cell, marks] of cornerMarks(state.puzzle, state.suggestions, state.players)) {
         const r = cells[cell] && visibleRect(cells[cell]);
         if (!r) continue;
-        const size = r.width * 0.33;
-        // top-right, bottom-right, bottom-left (top-left holds the clue number)
-        const spots = [[r.right - size * 0.85, r.top + 2], [r.right - size * 0.85, r.bottom - size - 2], [r.left + 3, r.bottom - size - 2]];
+        const size = r.width * 0.36;
+        const pad = r.width * 0.05;
+        // Anchor to the cell's own edges (right/bottom for the right/bottom corners) so letters never spill over.
+        const right = this.layer.clientWidth - r.right + pad;
+        const bottom = this.layer.clientHeight - r.bottom + pad;
+        const afterNumber = numberRight(cells[cell], state.puzzle.numbers[cell]) ?? r.left;
+        const spots = [
+          `right:${right}px;top:${r.top + pad}px`, // top-right
+          `left:${afterNumber + pad}px;top:${r.top + pad}px`, // top-left, after the clue number
+          `left:${r.left + pad}px;bottom:${bottom}px`, // bottom-left
+          `right:${right}px;bottom:${bottom}px`, // bottom-right
+        ];
         marks.forEach((m, i) => {
           const el = div('mark', m.text);
-          el.style.cssText = `left:${spots[i][0]}px;top:${spots[i][1]}px;font-size:${size}px;color:${m.color}`;
-          if (m.text.length > 1) el.style.fontSize = `${size * 0.7}px`;
+          el.dataset.cell = String(cell);
+          el.style.cssText = `${spots[i]};font-size:${m.text.length > 1 ? size * 0.7 : size}px;color:${m.color}`;
           items.push(el);
         });
       }
@@ -77,7 +88,7 @@ export class Overlay {
           const badge = div('badge', p.name.slice(0, 1).toUpperCase());
           badge.title = p.name;
           const left = this.adapter.badgeSide === 'left' ? r.left + 4 + i * 20 : r.right - 22 - i * 20;
-          badge.style.cssText = `left:${left}px;top:${r.top + 3}px;background:${p.color}`;
+          badge.style.cssText = `left:${left}px;top:${r.top + 3}px;background:${p.color};color:${textOn(p.color)}`;
           items.push(badge);
         });
       }
@@ -91,6 +102,18 @@ function div(className: string, text: string) {
   el.className = className;
   el.textContent = text;
   return el;
+}
+
+/** Where the clue number printed in a cell ends, measured on the text itself (its element may be wider). */
+function numberRight(cell: Element, num: number | null): number | null {
+  if (num === null) return null;
+  for (const el of cell.querySelectorAll('*')) {
+    if (el.childElementCount || el.textContent?.replace(/\D/g, '') !== String(num)) continue;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    return range.getBoundingClientRect().right;
+  }
+  return null;
 }
 
 /** The element's on-screen box, or null if it's hidden or scrolled out of view inside a scrolling panel. */

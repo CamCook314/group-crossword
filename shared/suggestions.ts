@@ -33,7 +33,8 @@ export function clashes(puzzle: Puzzle, letters: string[], s: Suggestion): boole
   });
 }
 
-export const MAX_CORNERS = 3;
+/** Corners are filled top-right, top-left, bottom-left, bottom-right. */
+export const MAX_CORNERS = 4;
 
 export interface CornerMark {
   /** A letter, or "+N" when more players suggested this cell than there are corners. */
@@ -41,9 +42,12 @@ export interface CornerMark {
   color: string;
 }
 
-/** Suggested letters to draw in each cell's corners: one per player, in player order. */
+/**
+ * Suggested letters to draw in each cell's corners: one per player, in the order the suggestions were made
+ * (so a new suggestion never moves the existing ones).
+ */
 export function cornerMarks(puzzle: Puzzle, suggestions: Suggestion[], players: Player[]): Map<number, CornerMark[]> {
-  // cell -> playerId -> letter (later suggestions win)
+  // cell -> playerId -> letter. Map keeps insertion order; a player's later letter replaces theirs in place.
   const byCell = new Map<number, Map<string, string>>();
   for (const s of suggestions) {
     const clue = puzzle.clues.find(c => c.id === s.clueId);
@@ -53,12 +57,9 @@ export function cornerMarks(puzzle: Puzzle, suggestions: Suggestion[], players: 
       byCell.get(cell)!.set(s.playerId, s.letters[i]);
     });
   }
-  const order = (id: string) => players.findIndex(p => p.id === id);
   const marks = new Map<number, CornerMark[]>();
   for (const [cell, byPlayer] of byCell) {
-    const list = [...byPlayer]
-      .sort(([a], [b]) => order(a) - order(b))
-      .map(([id, letter]) => ({ text: letter, color: players.find(p => p.id === id)?.color ?? '#888888' }));
+    const list = [...byPlayer].map(([id, letter]) => ({ text: letter, color: players.find(p => p.id === id)?.color ?? '#888888' }));
     marks.set(cell, list.length > MAX_CORNERS ? [...list.slice(0, MAX_CORNERS - 1), { text: `+${list.length - (MAX_CORNERS - 1)}`, color: '#888888' }] : list);
   }
   return marks;

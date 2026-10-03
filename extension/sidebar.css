@@ -156,3 +156,6 @@ button.secondary {
   display: flex;
   gap: 6px;
 }
+.undo {
+  margin-bottom: 4px;
+}

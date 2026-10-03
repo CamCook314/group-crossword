@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { textOn } from '../../shared/color';
 import { normalizeLetter, type GuestMessage, type RoomState } from '../../shared/protocol';
 import { clueAt, puzzleKey, type Clue, type Dir, type Puzzle } from '../../shared/puzzle';
 import { cornerMarks } from '../../shared/suggestions';
@@ -154,6 +155,11 @@ function Solver({ puzzle, state, me, send }: Props & { puzzle: Puzzle }) {
             if (block) return <div class="cell block" />;
             const classes = ['cell', clue?.cells.includes(cell) && 'in-clue', cell === sel.cell && 'cursor'].filter(Boolean).join(' ');
             const draft = drafts[cell];
+            // Corners fill top-right, top-left, bottom-left, bottom-right; the top-left one sits after the clue number.
+            const mark = (i: number) => {
+              const m = marks.get(cell)?.[i];
+              return m && <span class={`mark m${i}`} style={{ color: m.color }}>{m.text}</span>;
+            };
             return (
               <div
                 class={classes}
@@ -163,13 +169,14 @@ function Solver({ puzzle, state, me, send }: Props & { puzzle: Puzzle }) {
                   selectCell(cell);
                 }}
               >
-                {puzzle.numbers[cell] && <span class="num">{puzzle.numbers[cell]}</span>}
                 <span class={draft ? 'letter draft' : 'letter'}>{draft || state.letters[cell]}</span>
-                {marks.get(cell)?.map((m, i) => (
-                  <span class={`mark m${i}`} style={{ color: m.color }}>
-                    {m.text}
-                  </span>
-                ))}
+                <span class="top-left">
+                  {puzzle.numbers[cell] && <span class="num">{puzzle.numbers[cell]}</span>}
+                  {mark(1)}
+                </span>
+                {mark(0)}
+                {mark(2)}
+                {mark(3)}
               </div>
             );
           })}
@@ -187,7 +194,7 @@ function Solver({ puzzle, state, me, send }: Props & { puzzle: Puzzle }) {
                       <span class="n">{c.num}</span>
                       <span class="t">{c.text}</span>
                       {othersOn(c).map(p => (
-                        <span class="badge" style={{ background: p.color }} title={p.name}>
+                        <span class="badge" style={{ background: p.color, color: textOn(p.color) }} title={p.name}>
                           {p.name.slice(0, 1).toUpperCase()}
                         </span>
                       ))}

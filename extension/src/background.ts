@@ -22,6 +22,8 @@ const sidebars = new Set<browser.runtime.Port>();
 const guests = new Map<string, Player>();
 let suggestions: Suggestion[] = [];
 let session: Session | null = null;
+/** What the last accepted suggestion changed on the site, so it can be undone. */
+let lastAccept: { playerId: string; clueId: string; changes: { cell: number; before: string; after: string }[] } | null = null;
 
 browser.storage.local.get('host').then(stored => {
   if (stored.host) host = stored.host as HostProfile;
@@ -41,7 +43,12 @@ function roomState(): RoomState {
 function update() {
   suggestions = pruneSuggestions(suggestions, page?.puzzle ?? null, page?.letters ?? []);
   const state = roomState();
-  const status: SidebarStatus = { state, host, session: session && { link: GUEST_URL + '#' + session.roomId, status: session.status } };
+  const status: SidebarStatus = {
+    state,
+    host,
+    session: session && { link: GUEST_URL + '#' + session.roomId, status: session.status },
+    undo: lastAccept && { playerId: lastAccept.playerId, clueId: lastAccept.clueId },
+  };
   for (const port of sidebars) port.postMessage(status);
   adapter?.postMessage({ type: 'overlay', state: session ? state : null } satisfies ToAdapter);
   if (session) sendToGuests({ t: 'state', state });
@@ -103,6 +110,7 @@ function stopSession() {
   session = null;
   guests.clear();
   suggestions = [];
+  lastAccept = null;
   update();
 }
 
@@ -136,9 +144,24 @@ function onSidebarMessage(msg: FromSidebar) {
       return update();
     case 'accept': {
       const s = suggestions.find(x => x.playerId === msg.playerId && x.clueId === msg.clueId);
+      if (!s || !page) return;
+      const letters = page.letters;
+      const changes = cellsToApply(page.puzzle, s)
+        .map(({ cell, letter }) => ({ cell, before: letters[cell], after: letter }))
+        .filter(c => c.before !== c.after);
+      lastAccept = changes.length ? { playerId: s.playerId, clueId: s.clueId, changes } : null;
       // The suggestion disappears by itself once its letters show up on the site.
-      if (s && page) adapter?.postMessage({ type: 'apply', cells: cellsToApply(page.puzzle, s) } satisfies ToAdapter);
-      return;
+      adapter?.postMessage({ type: 'apply', cells: changes.map(c => ({ cell: c.cell, letter: c.after })) } satisfies ToAdapter);
+      return update();
+    }
+    case 'undo': {
+      if (!lastAccept || !page) return;
+      const letters = page.letters;
+      // Only put back squares that still hold what the accept typed, so later changes aren't lost.
+      const cells = lastAccept.changes.filter(c => letters[c.cell] === c.after).map(c => ({ cell: c.cell, letter: c.before }));
+      adapter?.postMessage({ type: 'apply', cells } satisfies ToAdapter);
+      lastAccept = null;
+      return update();
     }
     case 'reject':
       suggestions = suggestions.filter(x => !(x.playerId === msg.playerId && x.clueId === msg.clueId));
@@ -153,7 +176,10 @@ browser.runtime.onConnect.addListener(port => {
       const snapshot = m as PageSnapshot;
       // Whichever crossword page reported most recently is the one we use.
       adapter = port;
-      if (page && puzzleKey(page.puzzle) !== puzzleKey(snapshot.puzzle)) suggestions = [];
+      if (page && puzzleKey(page.puzzle) !== puzzleKey(snapshot.puzzle)) {
+        suggestions = [];
+        lastAccept = null;
+      }
       page = snapshot;
       update();
     });

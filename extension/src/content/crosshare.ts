@@ -48,10 +48,11 @@ const adapter: SiteAdapter = {
   // Clue numbers are right-aligned in a wide column, leaving space on the left; the text runs to the right edge.
   badgeSide: 'left',
 
-  typeLetter(cell, letter) {
+  setLetter(cell, letter) {
     (grid()?.cells[cell] as HTMLElement | undefined)?.click();
     // Crosshare listens for keydown on window; it ignores events dispatched on window itself, so send it via body.
-    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: letter, bubbles: true, cancelable: true }));
+    // Delete clears the selected square without moving.
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: letter || 'Delete', bubbles: true, cancelable: true }));
   },
 };
 

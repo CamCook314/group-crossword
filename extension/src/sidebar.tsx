@@ -1,7 +1,8 @@
 // The host's control panel: start a session, share the link, see players, accept or reject suggestions.
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { COLORS, type Suggestion } from '../../shared/protocol';
+import { ColorPicker } from '../../shared/ColorPicker';
+import type { Suggestion } from '../../shared/protocol';
 import { clashes } from '../../shared/suggestions';
 import type { FromSidebar, SidebarStatus } from './messages';
 
@@ -19,7 +20,7 @@ function App() {
   const [status, setStatus] = useState<SidebarStatus | null>(null);
   useEffect(() => connect(setStatus), []);
   if (!status) return null;
-  const { state, host, session } = status;
+  const { state, host, session, undo } = status;
   const { puzzle } = state;
 
   return (
@@ -32,7 +33,7 @@ function App() {
           maxLength={24}
           onChange={e => send({ type: 'host', host: { ...host, name: e.currentTarget.value.trim() || 'Host' } })}
         />
-        <Swatches value={host.color} onPick={color => send({ type: 'host', host: { ...host, color } })} />
+        <ColorPicker value={host.color} onPick={color => send({ type: 'host', host: { ...host, color } })} />
       </section>
 
       <section>
@@ -76,6 +77,11 @@ function App() {
       {session && (
         <section>
           <h2>Suggestions</h2>
+          {undo && (
+            <button class="secondary undo" onClick={() => send({ type: 'undo' })}>
+              Undo accept: {state.players.find(p => p.id === undo.playerId)?.name ?? 'Someone'} · {undo.clueId}
+            </button>
+          )}
           {state.suggestions.length === 0 && <p class="hint">None yet.</p>}
           {puzzle &&
             state.suggestions.map(s => {
@@ -112,15 +118,5 @@ function App() {
 }
 
 const decide = (type: 'accept' | 'reject', s: Suggestion) => send({ type, playerId: s.playerId, clueId: s.clueId });
-
-function Swatches({ value, onPick }: { value: string; onPick: (color: string) => void }) {
-  return (
-    <div class="swatches">
-      {COLORS.map(c => (
-        <button key={c} class={c === value ? 'swatch picked' : 'swatch'} style={{ background: c }} title={c} onClick={() => onPick(c)} />
-      ))}
-    </div>
-  );
-}
 
 render(<App />, document.getElementById('app')!);

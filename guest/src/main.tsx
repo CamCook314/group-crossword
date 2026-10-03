@@ -1,5 +1,6 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { ColorPicker } from '../../shared/ColorPicker';
 import { COLORS, type RoomState } from '../../shared/protocol';
 import { Board } from './Board';
 import { connect, type Connection } from './connection';
@@ -96,11 +97,7 @@ function Join({ profile, onJoin }: { profile: Profile; onJoin: (p: Profile) => v
         Your name
         <input autoFocus maxLength={24} value={name} onInput={e => setName(e.currentTarget.value)} />
       </label>
-      <div class="swatches">
-        {COLORS.map(c => (
-          <button type="button" key={c} class={c === color ? 'swatch picked' : 'swatch'} style={{ background: c }} title={c} onClick={() => setColor(c)} />
-        ))}
-      </div>
+      <ColorPicker value={color} onPick={setColor} />
       <button type="submit" disabled={!name.trim()}>
         Join
       </button>

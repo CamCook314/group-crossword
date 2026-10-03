@@ -51,7 +51,7 @@ const adapter: SiteAdapter = {
   // Clue numbers sit right at the left edge.
   badgeSide: 'right',
 
-  typeLetter(cell, letter) {
+  setLetter(cell, letter) {
     const box = grid()?.cells[cell];
     if (!box) return;
     // PuzzleMe selects on mousedown/mouseup (a plain click() does nothing), and reads letters from a hidden input.
@@ -59,8 +59,13 @@ const adapter: SiteAdapter = {
     mouse(box, 'mouseup');
     const input = document.querySelector<HTMLInputElement>('input.dummy');
     if (!input) return;
-    input.value = letter;
-    input.dispatchEvent(new InputEvent('input', { data: letter, inputType: 'insertText', bubbles: true }));
+    if (letter) {
+      input.value = letter;
+      input.dispatchEvent(new InputEvent('input', { data: letter, inputType: 'insertText', bubbles: true }));
+    } else {
+      // Typed letters arrive as input events, but Delete is a keydown; it clears the selected square.
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true, cancelable: true }));
+    }
   },
 };
 

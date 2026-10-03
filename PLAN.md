@@ -41,12 +41,14 @@ pick clues, and submit suggestions that the host accepts or rejects.
 ## Player experience
 
 **Everyone**
-- Each player picks a name and a colour when joining (host too).
+- Each player picks a name and a colour when joining (host too): a preset, or any colour from a colour wheel.
 - Selection is private: clicking a cell or clue highlights that clue and its cells on *your* screen only.
 - Everyone sees which clue each other player is on: a small avatar/initial badge in that player's colour next to the clue.
 - Real letters (what's on the host's site) are shown solid.
-- Submitted suggestions show for everyone as small, semi-transparent letters in the suggester's colour,
-  in the cell's free corners (top-left holds the clue number). Up to 3 shown per cell; beyond that, "+N".
+- Submitted suggestions show for everyone as small, semi-transparent monospace letters in the suggester's colour, in the
+  cell's corners in the order they were suggested: top-right, top-left (just after the clue number), bottom-left,
+  bottom-right. A new suggestion never moves existing ones. Up to 4 per cell; beyond that, "+N". On the host's overlay
+  they're anchored to the cell's own edges, so wide letters can't spill into the next square.
 
 **Guests** (shared view: grid + Across/Down lists, like the sites themselves)
 - Type letters into a clue's cells as a private draft. Partial answers are fine.
@@ -61,13 +63,16 @@ pick clues, and submit suggestions that the host accepts or rejects.
 - Sidebar lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
 - Accept → extension types the letters into the site (click each non-blank cell, type its letter) → site updates → everyone updates.
 - Reject → suggestion removed, suggester notified.
+- Undo accept → puts back the squares the last accepted suggestion changed (only those still holding what it typed,
+  so later typing isn't lost). One level only; the undone suggestion doesn't return to the queue.
 - A suggestion whose letters all match the grid is cleared automatically.
 
 ## Site notes
 
 Everything below is used by the content scripts and confirmed end to end in real Firefox with the extension
-(`npm run e2e`, 2026-10-03). All input is untrusted DOM events, dispatched synchronously: both sites react
-immediately, and timers can be throttled in out-of-view frames.
+(`npm run e2e`, 2026-10-03). All input is untrusted DOM events with no timers (they're throttled in out-of-view
+frames). Between squares we yield one microtask so Crosshare re-renders: it decides at render time whether clicking a
+square selects it or flips direction, so back-to-back clicks otherwise misfire.
 
 | | Crosshare | PuzzleMe (Courier Mail's player; tested on Vox) |
 |---|---|---|
@@ -77,26 +82,27 @@ immediately, and timers can be throttled in out-of-view frames.
 | Host's current clue | `li[data-active="true"]` | `.clueDiv.hilited-clue` |
 | Select a cell | `.click()` on the cell | `mousedown` + `mouseup` on `.box` (`click()` alone does nothing) |
 | Type a letter | `keydown` dispatched on `document.body` (on `window` it is ignored) | set `input.dummy` value + dispatch `input` (keydown is ignored) |
+| Clear a square | `keydown` `Delete` on `document.body` | `keydown` `Delete` on `input.dummy` |
 | Overlay positions | `getBoundingClientRect()` | `getBoundingClientRect()` (inside the iframe) |
 
 Notes:
 - Crosshare's page JSON (`#__NEXT_DATA__`) has the puzzle *and its solution*, and goes stale after in-app navigation, so we read the DOM instead.
 - Crosshare class names are CSS-module hashes (`Cell-module__JMEMxa__cellContainer`); match on the stable part (`__cellContainer`).
 - Crosshare shows a "Begin Puzzle" screen and PuzzleMe a "Play" button; the host clicks these by hand.
-- Courier Mail itself blocks automated access, so PuzzleMe was tested on a free Vox puzzle. Still to confirm on Courier Mail in the host's own Firefox.
+- Courier Mail itself blocks automated access, so the automated test uses a free Vox PuzzleMe puzzle; the host has confirmed it works on Courier Mail.
   The PuzzleMe content script runs in `*.amuselabs.com` and `*.couriermail.com.au` frames; if Courier Mail serves the player from another domain, add it to the manifest.
 
 ## Build steps
 
 | Step | What | Done when | Status |
 |---|---|---|---|
-| 0. Prove it in real Firefox | Read + type on both sites from the extension; WebRTC from the background page | Works on Courier Mail while logged in; a friend on another network connects | ✅ Crosshare + Vox PuzzleMe (e2e). ⏳ Courier Mail; a friend on another network |
+| 0. Prove it in real Firefox | Read + type on both sites from the extension; WebRTC from the background page | Works on Courier Mail while logged in; a friend on another network connects | ✅ Crosshare + Vox PuzzleMe (e2e); ✅ Courier Mail (host testing, 2026-10-03). ⏳ a friend on another network |
 | 1. Clickable mockup | Guest view + host overlay look | We're happy with highlights, badges, corner letters | Skipped: built the real UI instead; review it in use |
 | 2. Core | Puzzle model (numbering, cells per clue), message types | Unit tests pass | ✅ |
 | 3. Live view | Adapters + extension + guest page | Host types on the site → guests see it; late joiners get the full state | ✅ |
 | 4. Players | Names, colours, clue badges (guest view + host overlay) | Each player's clue shows for everyone | ✅ |
 | 5. Suggestions | Submit, corner letters, sidebar queue, accept → typed into site, reject | Full loop works | ✅ Crosshare + Vox PuzzleMe |
-| 6. Courier Mail | PuzzleMe adapter (runs inside the iframe) | Steps 3–5 work on Courier Mail | ⏳ needs a check while logged in |
+| 6. Courier Mail | PuzzleMe adapter (runs inside the iframe) | Steps 3–5 work on Courier Mail | ✅ confirmed by the host on Courier Mail |
 | 7. Robustness + install | Reconnects, host page reload, switching puzzles; unlisted signing | A full session with friends without restarts | Partly: guests rejoin as the same player, the host re-registers with the broker, switching puzzles works. ⏳ signing |
 
 ## Messages

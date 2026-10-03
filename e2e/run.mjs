@@ -110,9 +110,11 @@ async function openSidebarTab(driver) {
 }
 
 const step = msg => console.log(`  ✓ ${msg}`);
+const ANA_COLOR = '#12ab34';
 
 const host = await launch(true);
-const guest = await launch(false);
+const sam = await launch(false);
+const ana = await launch(false);
 try {
   // The sidebar and the crossword get a window each, so the crossword tab stays visible.
   const sidebarWindow = await openSidebarTab(host);
@@ -120,19 +122,32 @@ try {
   const siteWindow = await host.getWindowHandle();
   await host.switchTo().window(sidebarWindow);
 
-  // --- Host starts a session; guest joins ---
+  // --- Host starts a session; two guests join (Ana with a custom colour from the colour wheel) ---
   await (await until('Start button', () => host.findElement(By.xpath("//button[normalize-space(.)='Start session']")))).click();
   await until('session live', async () => (await host.findElement(By.css('.status')).getText()) === 'Live', 30000);
   const roomId = new URL(await host.findElement(By.css('.link input')).getAttribute('value')).hash.slice(1);
-  await guest.get(`http://localhost:${GUEST_PORT}/#${roomId}`);
-  await (await until('name box', () => guest.findElement(By.css('.join input')))).sendKeys('Sam');
-  await guest.findElement(By.css('.join button[type=submit]')).click();
-  await until('guest waiting for a puzzle', async () => (await guest.findElement(By.css('body')).getText()).includes('Waiting for the host'), 30000);
-  step(`session ${roomId} is live and the guest joined`);
-
-  const guestLetter = cell => guest.findElement(By.css(`.cell[data-cell="${cell}"] .letter`)).getText();
-  const guestMarks = async () => (await guest.findElements(By.css('.mark'))).length;
+  async function join(guest, name, customColor) {
+    await guest.get(`http://localhost:${GUEST_PORT}/#${roomId}`);
+    await (await until('name box', () => guest.findElement(By.css('.join input')))).sendKeys(name);
+    if (customColor) {
+      await guest.findElement(By.css('.swatch[title="Any colour"]')).click();
+      await guest.findElement(By.css('input.hex')).sendKeys(Key.END, ...Array(7).fill(Key.BACK_SPACE), customColor);
+    }
+    await guest.findElement(By.css('.join button[type=submit]')).click();
+    await until(`${name} waiting for a puzzle`, async () => (await guest.findElement(By.css('body')).getText()).includes('Waiting for the host'), 30000);
+  }
+  await join(sam, 'Sam');
+  await join(ana, 'Ana', ANA_COLOR);
   const sidebar = async () => host.switchTo().window(sidebarWindow);
+  await sidebar();
+  const anaDot = await until('Ana in the players list', () => host.findElement(By.xpath("//ul[@class='players']/li[contains(., 'Ana')]/span[@class='dot']")));
+  const anaRgb = await anaDot.getCssValue('background-color');
+  if (anaRgb !== 'rgb(18, 171, 52)') throw new Error(`Ana's colour is ${anaRgb}`);
+  step(`session ${roomId} is live; Sam and Ana joined (Ana picked ${ANA_COLOR} on the colour wheel)`);
+
+  const letter = (guest, cell) => guest.findElement(By.css(`.cell[data-cell="${cell}"] .letter`)).getText();
+  const marks = async guest => (await guest.findElements(By.css('.mark'))).length;
+  const both = async check => (await check(sam)) && (await check(ana));
 
   for (const name of sites) {
     const site = SITES[name];
@@ -152,73 +167,99 @@ try {
       );
     };
     const siteCellCount = await host.executeScript(`return document.querySelectorAll(arguments[0]).length`, site.cells);
-    await until('guest has the same grid', async () => (await guest.findElements(By.css('.grid .cell'))).length === siteCellCount, 30000);
-    const clueCount = (await guest.findElements(By.css('.clue-list li'))).length;
+    await until('guests have the same grid', () => both(async g => (await g.findElements(By.css('.grid .cell'))).length === siteCellCount), 30000);
+    const clueCount = (await sam.findElements(By.css('.clue-list li'))).length;
     if (clueCount < 20) throw new Error(`only ${clueCount} clues`);
-    if ((await guest.findElement(By.css('.cell[data-cell="0"] .num')).getText()) !== '1') throw new Error('test assumes 1A starts in cell 0');
-    step(`guest sees the ${siteCellCount}-cell grid and ${clueCount} clues`);
+    if ((await sam.findElement(By.css('.cell[data-cell="0"] .num')).getText()) !== '1') throw new Error('test assumes 1A and 1D start in cell 0');
+    step(`guests see the ${siteCellCount}-cell grid and ${clueCount} clues`);
 
     // Host types on the real site.
     await onSite();
     await (await host.findElements(By.css(site.cells)))[0].click();
     await host.actions().sendKeys('q').perform();
-    await until('guest sees host letter', async () => (await guestLetter(0)) === 'Q');
-    step('host typed Q on the site and the guest sees it');
+    await until('guests see host letter', () => both(async g => (await letter(g, 0)) === 'Q'));
+    step('host typed Q on the site and both guests see it');
 
-    // Guest suggests 1A, overwriting the host's Q. Clicking 1A jumps to its first empty square, so step back first.
-    await guest.findElement(By.css('li[data-clue="1A"]')).click();
-    await guest.actions().sendKeys(Key.ARROW_LEFT, 'br', Key.ENTER).perform();
-    await until('guest sees own corner marks', async () => (await guestMarks()) === 2);
+    // Sam suggests 1A and Ana 1D, both starting on the host's Q (clicking a clue jumps to its first empty square,
+    // so step back). Wide letters check that nothing spills out of its square.
+    await sam.findElement(By.css('li[data-clue="1A"]')).click();
+    await sam.actions().sendKeys(Key.ARROW_LEFT, 'wm', Key.ENTER).perform();
+    await until('Sam sees his marks', async () => (await marks(sam)) === 2);
+    await ana.findElement(By.css('li[data-clue="1D"]')).click();
+    await ana.actions().sendKeys(Key.ARROW_UP, 'ab', Key.ENTER).perform();
+    await until('guests see all four marks', () => both(async g => (await marks(g)) === 4));
+    const corner = (guest, sel) => guest.findElement(By.css(`.cell[data-cell="0"] ${sel}`)).getText();
+    if ((await corner(sam, '.mark.m0')) !== 'W' || (await corner(sam, '.top-left .mark')) !== 'A') throw new Error('guest corners in the wrong order');
     await sidebar();
-    await until('sidebar shows suggestion', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
-    const clashes = (await host.findElements(By.css('.suggestion .clash'))).length;
+    await until('sidebar shows both suggestions', async () => (await host.findElements(By.css('.suggestion'))).length === 2);
+
     await onSite();
     const overlay = await until('overlay', async () => {
-      const r = await host.executeScript(`
-        const root = document.getElementById('group-crossword-overlay')?.shadowRoot;
-        return root && { marks: [...root.querySelectorAll('.mark')].map(m => m.textContent), badges: [...root.querySelectorAll('.badge')].map(b => b.title) };`);
-      return r && r.marks.length === 2 && r.badges.length === 1 && r;
+      const r = await host.executeScript(
+        `const root = document.getElementById('group-crossword-overlay')?.shadowRoot;
+         if (!root) return null;
+         const cells = document.querySelectorAll(arguments[0]);
+         const marks = [...root.querySelectorAll('.mark')].map(m => {
+           const a = m.getBoundingClientRect(), c = cells[m.dataset.cell].getBoundingClientRect();
+           return { text: m.textContent, cell: Number(m.dataset.cell), left: a.left,
+                    inside: a.left >= c.left && a.right <= c.right && a.top >= c.top && a.bottom <= c.bottom };
+         });
+         // Where the "1" printed in the first square ends.
+         const num = [...cells[0].querySelectorAll('*')].find(el => !el.childElementCount && el.textContent.replace(/\\D/g, '') === '1');
+         const range = document.createRange();
+         range.selectNodeContents(num);
+         return { marks, numberRight: range.getBoundingClientRect().right, badges: [...root.querySelectorAll('.badge')].map(b => b.title) };`,
+        site.cells,
+      );
+      return r && r.marks.length === 4 && r.badges.length === 2 && r;
     });
+    const spilled = overlay.marks.filter(m => !m.inside).map(m => m.text);
+    if (spilled.length) throw new Error(`overlay letters spill out of their squares: ${spilled}`);
+    const [first, second] = overlay.marks.filter(m => m.cell === 0);
+    if (first.text !== 'W' || second.text !== 'A' || !(second.left < first.left)) throw new Error('overlay corners in the wrong order');
+    if (second.left < overlay.numberRight) throw new Error('top-left letter overlaps the clue number');
     if (process.env.SHOTS) {
       await host.switchTo().defaultContent();
       const frame = (await host.findElements(By.css('iframe[src*="amuselabs"]')))[0];
       writeFileSync(`e2e/.artifacts/${name}-host.png`, await (frame ?? host).takeScreenshot(true), 'base64');
-      writeFileSync(`e2e/.artifacts/${name}-guest.png`, await guest.takeScreenshot(), 'base64');
+      writeFileSync(`e2e/.artifacts/${name}-guest.png`, await sam.takeScreenshot(), 'base64');
       await sidebar();
-      await host.manage().window().setRect({ width: 360, height: 760 });
+      await host.manage().window().setRect({ width: 360, height: 900 });
       writeFileSync(`e2e/.artifacts/${name}-sidebar.png`, await host.takeScreenshot(), 'base64');
     }
-    step(`guest suggested BR; sidebar shows it (${clashes} clash), overlay shows ${overlay.marks.join(',')} and ${overlay.badges[0]}'s badge`);
+    step(`overlay: ${overlay.marks.map(m => m.text).join(',')} inside their squares; W top-right, A top-left after the number; badges for ${overlay.badges.join(' and ')}`);
 
-    // Host accepts.
+    // Host accepts Sam's (listed first), then undoes it.
     await sidebar();
-    await host.findElement(By.xpath("//button[normalize-space(.)='Accept']")).click();
-    await until('site has BR', async () => (await siteLetters(0, 1)) === 'BR');
-    await until('guest sees BR, marks gone', async () => (await guestLetter(0)) + (await guestLetter(1)) === 'BR' && (await guestMarks()) === 0);
+    await (await host.findElements(By.xpath("//button[normalize-space(.)='Accept']")))[0].click();
+    await until('site has WM', async () => (await siteLetters(0, 1)) === 'WM');
+    await until('guests see WM', () => both(async g => (await letter(g, 0)) + (await letter(g, 1)) === 'WM'));
+    step("host accepted Sam's 1A: WM typed into the site and synced to both guests");
     await sidebar();
-    await until('sidebar queue empty', async () => (await host.findElements(By.css('.suggestion'))).length === 0);
-    step('host accepted: BR was typed into the site and synced back to the guest');
+    await (await until('Undo button', () => host.findElement(By.css('button.undo')))).click();
+    await until('site back to Q', async () => (await siteLetters(0, 1)) === 'Q');
+    await until('guests see Q again', () => both(async g => (await letter(g, 0)) === 'Q' && (await letter(g, 1)) === ''));
+    await sidebar();
+    if ((await host.findElements(By.css('button.undo'))).length) throw new Error('undo still offered');
+    step('host pressed Undo: the Q came back, the M was cleared, and both guests see it');
 
-    // Guest suggests 1D; host rejects.
-    await guest.findElement(By.css('li[data-clue="1D"]')).click();
-    await guest.actions().sendKeys('zz', Key.ENTER).perform();
-    await sidebar();
-    await until('sidebar shows 1D suggestion', async () => (await host.findElements(By.css('.suggestion'))).length === 1);
+    // Host rejects Ana's 1D.
     await host.findElement(By.xpath("//button[normalize-space(.)='Reject']")).click();
-    await until('guest told about rejection', async () => (await guest.findElement(By.css('.toast')).getText()).includes('rejected'));
-    if ((await siteLetters(0, 1)) !== 'BR' || (await guestMarks()) !== 0) throw new Error('rejected suggestion changed something');
-    step('host rejected 1D: guest was told and nothing was typed');
+    await until('Ana told about rejection', async () => (await ana.findElement(By.css('.toast')).getText()).includes('rejected'));
+    await until('marks gone', () => both(async g => (await marks(g)) === 0));
+    if ((await siteLetters(0, 1)) !== 'Q') throw new Error('rejected suggestion changed the site');
+    step("host rejected Ana's 1D: she was told and nothing was typed");
   }
   console.log('\nAll end-to-end checks passed.');
 } catch (e) {
   console.error('\nFAILED:', e.message);
   process.exitCode = 1;
-  for (const [name, driver] of [['host', host], ['guest', guest]]) {
+  for (const [name, driver] of [['host', host], ['sam', sam], ['ana', ana]]) {
     await driver.switchTo().defaultContent().catch(() => {});
     writeFileSync(`e2e/.artifacts/failure-${name}.png`, await driver.takeScreenshot(), 'base64');
   }
   console.error('Screenshots saved in e2e/.artifacts/');
 } finally {
-  await Promise.allSettled([host.quit(), guest.quit()]);
+  await Promise.allSettled([host.quit(), sam.quit(), ana.quit()]);
   server.close();
 }

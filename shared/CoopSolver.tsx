@@ -163,7 +163,8 @@ function Solver({ puzzle, state, me, suggest, select, write, actions, finishedEx
         <button class="secondary" onClick={() => setTool(tool === 'define' ? null : 'define')}>
           Define
         </button>
-        {!writing && (
+        {/* Kept while drafts are left over from suggesting, so they can still be suggested. */}
+        {(!writing || hasDraft) && (
           <button onClick={submit} disabled={!hasDraft} title="Enter">
             {submitText.button}
           </button>

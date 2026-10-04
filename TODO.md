@@ -4,16 +4,14 @@ The host's notes from playing with friends on 0.5.0, in the order they matter mo
 Status: ⏳ to do, ❓ needs a decision, ✅ done. All done in 0.6.0 (2026-10-04) and checked end to end on both test
 sites (`npm run e2e`), except where a row says otherwise.
 
-## Where we stopped (2026-10-04)
+## Status (2026-10-04)
 
-Everything below is built on the `fixes` branch (version 0.6.0), **not yet merged or deployed**. Left to do:
+Built as 0.6.0, merged into `main` and deployed. Checks before merging:
+- `npm run e2e` passed in full: co-op and race, on Crosshare and the Vox PuzzleMe puzzle.
+- The new guest page passed `main`'s previous tests against the installed 0.5.0 extension, every co-op and race check
+  on both sites. Only the selectors for the moved Replay button and the floating messages were updated in that copy.
 
-1. Run `npm run e2e` in full. Last results: co-op passed every check on Crosshare. On PuzzleMe it stopped on a bug in
-   the test itself (fixed since, not re-run). The race test passed on Crosshare, then raced the wrong puzzle on
-   PuzzleMe, because a newly opened crossword is now only offered. The race lobby now offers it ("Play it instead"),
-   and the test presses that; not re-run yet.
-2. Check the new guest page against the installed 0.5.0 extension, as before each deploy (see PLAN.md, Messages).
-3. Merge `fixes` into `main` and push (deploys the guest page), then build and sign 0.6.0 and install it.
+Left for the host: build and sign 0.6.0 and install it, then try it in a real session.
 
 ## Big decision
 

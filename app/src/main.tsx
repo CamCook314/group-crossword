@@ -4,11 +4,14 @@ import { ColorPicker } from '../../shared/ColorPicker';
 import type { CoopReplay } from '../../shared/CoopSolver';
 import { COLORS, type GuestMessage, type Player, type RacerBoard, type RoomState } from '../../shared/protocol';
 import { Board } from './Board';
+import { HostApp } from './host/HostApp';
 import { connect, type Connection } from './connection';
 import { PlayerList } from './PlayerList';
 import { Race, type NotQuite } from './Race';
 
 // The link is #<room id>, optionally followed by ?name=…&color=… to fill in the join form (the host's Play button).
+// The address picks the screen: #host to host, #<room id> to join (optionally followed by ?name=…&color=… to fill in
+// the join form, as the host's "Join as a racer" does), or nothing for the home screen.
 const [roomId, query = ''] = location.hash.slice(1).split('?');
 const invite = new URLSearchParams(query);
 
@@ -96,7 +99,6 @@ function App() {
     conn.current?.send(hello.current);
   }
 
-  if (!roomId) return <p class="center">Ask the host for a link to their session.</p>;
   if (!joined) return <Join profile={profile} players={state?.players} problem={problem} onJoin={join} />;
   return (
     <>
@@ -188,4 +190,33 @@ function Join({
   );
 }
 
-render(<App />, document.getElementById('app')!);
+/** No room in the address: host a game, or join one with its link or room code. */
+function Home() {
+  const [code, setCode] = useState('');
+  return (
+    <form
+      class="join home"
+      onSubmit={e => {
+        e.preventDefault();
+        const id = code.trim().split('#').pop();
+        if (id) location.hash = id;
+      }}
+    >
+      <h1>Group Crossword</h1>
+      <button type="button" onClick={() => (location.hash = 'host')}>
+        Host a game
+      </button>
+      <label>
+        Or join with the link or room code
+        <input value={code} onInput={e => setCode(e.currentTarget.value)} />
+      </label>
+      <button type="submit" class="secondary">
+        Join
+      </button>
+    </form>
+  );
+}
+
+// A different address is a different screen.
+addEventListener('hashchange', () => location.reload());
+render(roomId === 'host' ? <HostApp /> : roomId ? <App /> : <Home />, document.getElementById('app')!);

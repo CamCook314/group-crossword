@@ -1,12 +1,12 @@
-// The race half of the host's full view: lobby and settings, a live board for every racer (with % correct, which
+// The host's race screen: lobby and settings, a live board for every racer (with % correct, which
 // racers never see), and the results with a replay.
-import { MiniBoard } from '../../shared/Crossword';
-import type { Player } from '../../shared/protocol';
-import { DEFAULT_PENALTY_SECONDS, formatTime, ordinal } from '../../shared/race';
-import { ReplayPlayer } from '../../shared/ReplayPlayer';
-import { Standings } from '../../shared/Standings';
-import { useNow } from '../../shared/useNow';
-import type { Command, RaceViewStatus } from './messages';
+import { MiniBoard } from '../../../shared/Crossword';
+import type { Player } from '../../../shared/protocol';
+import { DEFAULT_PENALTY_SECONDS, formatTime, ordinal } from '../../../shared/race';
+import { ReplayPlayer } from '../../../shared/ReplayPlayer';
+import { Standings } from '../../../shared/Standings';
+import { useNow } from '../../../shared/useNow';
+import type { Command, RaceViewStatus } from './types';
 import type { RacerDetail } from './raceHost';
 
 const percent = (n: number, total: number) => (total ? Math.round((100 * n) / total) : 0);
@@ -19,9 +19,7 @@ export function RaceView({ status, send }: { status: RaceViewStatus; send: (msg:
   // Racing yourself opens the racer's page in its own window, with the join form filled in with your name and colour.
   const play = () =>
     status.session &&
-    browser.windows.create({
-      url: `${status.session.link}?name=${encodeURIComponent(status.host.name)}&color=${encodeURIComponent(status.host.color)}`,
-    });
+    window.open(`${status.session.link}?name=${encodeURIComponent(status.host.name)}&color=${encodeURIComponent(status.host.color)}`, '_blank');
 
   return (
     <>

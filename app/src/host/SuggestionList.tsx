@@ -1,8 +1,8 @@
-// The host's suggestion queue, in the sidebar and the full view: how friends' answers go in, Undo, and one card per
-// suggestion (identical ones combined, the most-agreed first) with Accept and Reject.
-import type { AcceptMode } from '../../shared/protocol';
-import { AGREED_COLOR, clashes, groupSuggestions } from '../../shared/suggestions';
-import type { Command, SidebarStatus } from './messages';
+// The host's suggestion queue: how friends' answers go in, Undo, and one card per suggestion (identical ones combined,
+// the most-agreed first) with Accept and Reject.
+import type { AcceptMode } from '../../../shared/protocol';
+import { AGREED_COLOR, clashes, groupSuggestions } from '../../../shared/suggestions';
+import type { Command, HostStatus } from './types';
 
 const ACCEPT_MODES: [AcceptMode, string][] = [
   ['manual', 'When I accept them'],
@@ -10,7 +10,7 @@ const ACCEPT_MODES: [AcceptMode, string][] = [
   ['trusted', 'Automatically (trusted friends)'],
 ];
 
-export function SuggestionList({ status, send }: { status: SidebarStatus; send: (msg: Command) => void }) {
+export function SuggestionList({ status, send }: { status: HostStatus; send: (msg: Command) => void }) {
   const { state, undo } = status;
   const { puzzle } = state;
   const names = (ids: string[]) => ids.map(id => state.players.find(p => p.id === id)?.name ?? 'Someone').join(' + ');

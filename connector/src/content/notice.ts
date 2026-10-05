@@ -1,4 +1,4 @@
-// A note from the extension on the crossword's own page, e.g. that it's being played in the full view.
+// A note from the extension on the crossword's own page, e.g. that it's being played in Group Crossword.
 // Mouse events pass straight through to the site.
 const STYLE = `
   :host { all: initial; }

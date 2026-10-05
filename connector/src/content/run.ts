@@ -2,7 +2,8 @@
 // answers, shows the extension's notice, and fills in the grid.
 import { solutionsFit, type Solutions } from '../../../shared/answers';
 import { puzzleKey } from '../../../shared/puzzle';
-import type { FromAdapter, PageSnapshot, ToAdapter } from '../messages';
+import type { PageSnapshot } from '../../../shared/connector';
+import type { FromAdapter, ToAdapter } from '../messages';
 import { Notice } from './notice';
 
 export interface SiteAdapter {

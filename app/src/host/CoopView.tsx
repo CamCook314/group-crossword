@@ -1,12 +1,12 @@
-// The co-op half of the host's full view: the shared solving view (where the host writes straight into the grid, or
+// The host's co-op screen: the shared solving view (where the host writes straight into the grid, or
 // suggests like everyone else), with Check and Fill in, beside the suggestion queue and the players.
-import { CoopSolver } from '../../shared/CoopSolver';
-import type { Command, FullViewStatus, SidebarStatus } from './messages';
+import { CoopSolver } from '../../../shared/CoopSolver';
+import type { Command, HostScreens, HostStatus } from './types';
 import { SuggestionList } from './SuggestionList';
 
 interface Props {
-  status: SidebarStatus;
-  replay: FullViewStatus['replay'];
+  status: HostStatus;
+  replay: HostScreens['replay'];
   send: (msg: Command) => void;
 }
 

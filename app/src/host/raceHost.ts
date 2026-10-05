@@ -1,10 +1,10 @@
-// A race, run by the host's background page. Holds the answers and every racer's grid; racers only ever get
+// A race, run in the host's app tab. Holds the answers and every racer's grid; racers only ever get
 // RaceState (no answers, no % correct) until the race is over.
-import type { Solutions } from '../../shared/answers';
-import type { RacePhase, RaceResults, RaceState } from '../../shared/protocol';
-import type { Puzzle } from '../../shared/puzzle';
-import { DEFAULT_SETTINGS, newRacer, places, progress, raceTime, squareStatus, standings, updateLetters, type Racer, type RaceSettings } from '../../shared/race';
-import type { ReplayEvent } from '../../shared/replay';
+import type { Solutions } from '../../../shared/answers';
+import type { RacePhase, RaceResults, RaceState } from '../../../shared/protocol';
+import type { Puzzle } from '../../../shared/puzzle';
+import { DEFAULT_SETTINGS, newRacer, places, progress, raceTime, squareStatus, standings, updateLetters, type Racer, type RaceSettings } from '../../../shared/race';
+import type { ReplayEvent } from '../../../shared/replay';
 
 export const COUNTDOWN_MS = 3000;
 
@@ -20,6 +20,19 @@ export interface RacerDetail {
   timeMs: number | null;
   penaltyMs: number;
   place: number | null;
+}
+
+/** A race, saved so the host's tab can carry on after a reload. */
+export interface SavedRace {
+  phase: RacePhase;
+  settings: RaceSettings;
+  puzzle: Puzzle | null;
+  solutions: Solutions | null;
+  goAt: number | null;
+  endedAt: number | null;
+  racers: [string, Racer][];
+  timeline: ReplayEvent[];
+  results: RaceResults | null;
 }
 
 export class RaceHost {
@@ -51,10 +64,29 @@ export class RaceHost {
     for (const id of racerIds) this.racers.set(id, newRacer(puzzle.blocks.length));
     this.phase = 'countdown';
     this.goAt = now + COUNTDOWN_MS;
-    this.timer = setTimeout(() => {
-      this.phase = 'racing';
-      this.changed();
-    }, COUNTDOWN_MS);
+    this.startClock(now);
+  }
+
+  private startClock(now: number) {
+    this.timer = setTimeout(
+      () => {
+        this.phase = 'racing';
+        this.changed();
+      },
+      Math.max(0, this.goAt! - now),
+    );
+  }
+
+  save(): SavedRace {
+    const { phase, settings, puzzle, solutions, goAt, endedAt, timeline, results } = this;
+    return { phase, settings, puzzle, solutions, goAt, endedAt, racers: [...this.racers], timeline, results };
+  }
+
+  /** Carries on from a saved race; a countdown that was under way finishes on time. */
+  restore(saved: SavedRace, now: number) {
+    this.reset();
+    Object.assign(this, saved, { racers: new Map(saved.racers) });
+    if (this.phase === 'countdown') this.startClock(now);
   }
 
   /** A guest joined or came back. Late joiners get an empty grid; returning racers get their grid back. */

@@ -1,7 +1,7 @@
-// Builds the guest page and/or the Firefox extension.
+// Builds the app (the web page everyone uses, hosts included) and/or the connector (the Firefox extension).
 //   node build.mjs              both
-//   node build.mjs guest        guest page only (add --serve for a local dev server)
-//   node build.mjs extension    extension only
+//   node build.mjs app          the app only (add --serve for a local dev server)
+//   node build.mjs connector    the connector only
 import * as esbuild from 'esbuild';
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 
@@ -18,37 +18,34 @@ const common = {
   logLevel: 'info',
 };
 
-if (want('guest')) {
-  rmSync('guest/dist', { recursive: true, force: true });
-  mkdirSync('guest/dist', { recursive: true });
-  cpSync('guest/index.html', 'guest/dist/index.html');
-  cpSync('guest/style.css', 'guest/dist/style.css');
-  for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `guest/dist/${f}`);
-  const options = { ...common, entryPoints: ['guest/src/main.tsx'], outfile: 'guest/dist/main.js', target: 'es2020' };
+if (want('app')) {
+  rmSync('app/dist', { recursive: true, force: true });
+  mkdirSync('app/dist', { recursive: true });
+  for (const f of ['index.html', 'style.css', 'panel.css', 'host.css']) cpSync(`app/${f}`, `app/dist/${f}`);
+  for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `app/dist/${f}`);
+  const options = { ...common, entryPoints: ['app/src/main.tsx'], outfile: 'app/dist/main.js', target: 'es2020' };
   if (serve) {
     const ctx = await esbuild.context(options);
     await ctx.watch();
-    const { port } = await ctx.serve({ servedir: 'guest/dist', port: 8000 });
-    console.log(`Guest page: http://localhost:${port}/#<room id>`);
+    const { port } = await ctx.serve({ servedir: 'app/dist', port: 8000 });
+    console.log(`App: http://localhost:${port}/ (#host to host)`);
   } else {
     await esbuild.build(options);
   }
 }
 
-if (want('extension')) {
-  rmSync('extension/dist', { recursive: true, force: true });
-  mkdirSync('extension/dist', { recursive: true });
-  for (const f of ['manifest.json', 'sidebar.html', 'sidebar.css', 'panel.css', 'host.html', 'host.css', 'icon.svg']) cpSync(`extension/${f}`, `extension/dist/${f}`);
-  for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `extension/dist/${f}`);
+if (want('connector')) {
+  rmSync('connector/dist', { recursive: true, force: true });
+  mkdirSync('connector/dist', { recursive: true });
+  for (const f of ['manifest.json', 'icon.svg']) cpSync(`connector/${f}`, `connector/dist/${f}`);
   await esbuild.build({
     ...common,
     entryPoints: {
-      background: 'extension/src/background.ts',
-      sidebar: 'extension/src/sidebar.tsx',
-      host: 'extension/src/host.tsx',
-      'content-crosshare': 'extension/src/content/crosshare.ts',
-      'content-puzzleme': 'extension/src/content/puzzleme.ts',
+      background: 'connector/src/background.ts',
+      bridge: 'connector/src/bridge.ts',
+      'content-crosshare': 'connector/src/content/crosshare.ts',
+      'content-puzzleme': 'connector/src/content/puzzleme.ts',
     },
-    outdir: 'extension/dist',
+    outdir: 'connector/dist',
   });
 }

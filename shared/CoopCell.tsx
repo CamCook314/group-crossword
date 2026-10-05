@@ -1,4 +1,4 @@
-// What a co-op square shows, on the guest page and the host's full view: the letter (a draft or a letter on its way
+// What a co-op square shows, for guests and the host alike: the letter (a draft or a letter on its way
 // in is shown in the player's own colour), the clue number, and suggestions in the corners.
 import type { Puzzle } from './puzzle';
 import type { CornerMark } from './suggestions';

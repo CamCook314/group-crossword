@@ -94,6 +94,12 @@ input {
   box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--fg);
 }
 
+/* Home screen: host, or join with a link or code */
+.home > button:first-of-type {
+  font-size: 17px;
+  padding: 10px;
+}
+
 /* Join form: who's already here, and the buttons when changing your name or colour */
 .already {
   display: grid;

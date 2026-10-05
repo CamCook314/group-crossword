@@ -1,4 +1,4 @@
-// The co-op solving view, for guests and for the host's full view: the shared grid with everyone's suggestions, the
+// The co-op solving view, for guests and the host alike: the shared grid with everyone's suggestions, the
 // clue lists, drafting and suggesting, 👍 Agree, the tools (anagram pad, definitions, notes, replay), and the messages
 // everyone sees when the host checks or the grid fills up. The host can also write straight into the grid.
 import type { ComponentChildren } from 'preact';

@@ -309,3 +309,26 @@ main.fill header.top {
 .replay-section {
   flex-basis: 100%;
 }
+
+/* Your name and colour, in the top bar */
+header.top .you {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+.you-dialog {
+  display: grid;
+  gap: 12px;
+  min-width: 300px;
+}
+.you-dialog h2 {
+  margin: 0;
+}
+.you-dialog .actions {
+  display: flex;
+  gap: 8px;
+}
+.connector-missing {
+  margin: 0 0 12px;
+}

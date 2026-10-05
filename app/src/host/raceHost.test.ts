@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { solutionsFit } from '../../shared/answers';
-import { parseGuestMessage } from '../../shared/protocol';
-import { buildPuzzle } from '../../shared/puzzle';
+import { solutionsFit } from '../../../shared/answers';
+import { parseGuestMessage } from '../../../shared/protocol';
+import { buildPuzzle } from '../../../shared/puzzle';
 import { COUNTDOWN_MS, RaceHost } from './raceHost';
 
 // 3x3 ring: CAT / O#O / WET

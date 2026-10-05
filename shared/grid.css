@@ -1,4 +1,4 @@
-/* The solving view: clue bar, grid and clue lists (shared/Crossword.tsx), used by the guest page and the host's full view.
+/* The solving view: clue bar, grid and clue lists (shared/Crossword.tsx), used by guests and the host alike.
    Pages define the colour tokens (--cell, --block, --fg, --muted, --surface, --bg, --line, --me). The grid's width
    (--size) comes from its box, or is set directly (small boards). */
 .grid {

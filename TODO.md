@@ -73,3 +73,11 @@ Left for the host: build and sign 0.6.0 and install it, then try it in a real se
 |---|---|---|---|
 | 23 | In race mode the host's full view has no way to join as a player. | Check why Play isn't showing (it's in the lobby when a session is live) and make it obvious. | ✅ It was a small "Play" button in the lobby only. Now "Join as a racer" in the race header, in the lobby and during the race. |
 | 24 | The winner gets no Replay while waiting for the others to finish. | Finished racers can watch the race. They know every answer by then, so it gives nothing away. | ✅ Everyone's live boards |
+
+
+
+As of 06/10/26:
+Want to get sudokus working, also on the courier mail website and also powered by puzzle me.
+Possibly get working on crackingthecryptic.com/Sodukus
+Same ideas, have the suggestions and such and verification on completion. Some sudokus have special rules and symbols - killer sudoku, 
+thermometers, kropky, etc...

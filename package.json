@@ -9,11 +9,12 @@
     "dev:app": "node build.mjs app --serve",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "e2e": "node e2e/run.mjs && node e2e/race.mjs",
+    "e2e": "node e2e/run.mjs && node e2e/race.mjs && node e2e/games.mjs",
     "firefox": "web-ext run -s connector/dist",
     "sign": "web-ext sign -s connector/dist --channel unlisted",
     "e2e:coop": "node e2e/run.mjs",
-    "e2e:race": "node e2e/race.mjs"
+    "e2e:race": "node e2e/race.mjs",
+    "e2e:games": "node e2e/games.mjs"
   },
   "dependencies": {
     "peerjs": "^1.5.5",

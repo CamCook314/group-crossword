@@ -9,6 +9,13 @@
 .game h1 {
   margin: 0;
 }
+/* The host's page styles h2 as small section labels; games want real headings. */
+.game h2 {
+  font-size: 22px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg);
+}
 .game .players {
   margin-top: 8px;
 }

@@ -141,6 +141,47 @@ Most code moves rather than being rewritten:
 | 5. Ship | Sign the slimmer connector, update the docs, merge | A real session |
 | 6. Expansion | The game-kind layer, then sudoku (expansion.md), then the games without a site | As in expansion.md |
 
+## Long term: letting anyone host
+
+The host asked (2026-10-06): today only the host can host, since only they have the extension. Long term, is it
+worth getting a domain and a server, or building a non-web app where you paste a puzzle's URL, so that others can
+create a lobby and invite people? Would that also let non-puzzle games in?
+
+**What decides it is where the puzzle data comes from.** Checked 2026-10-06, whether a plain web page (like ours on
+GitHub Pages) may read each source:
+
+| Source | Readable by a web page? | So, to host it you need… |
+|---|---|---|
+| Open Trivia DB, Datamuse (Define) | Yes | Nothing: the app alone |
+| Generated sudokus, the bracket, a clue dataset we host ourselves | n/a (no outside source) | Nothing: the app alone |
+| Guardian, Crosshare, Cracking the Cryptic pages, SudokuPad's API | No (SudokuPad only allows its own development address) | Something outside the page to fetch it: the connector extension, or a small server that fetches on request |
+| Courier Mail (PuzzleMe behind a subscription) | No; it also needs the subscriber's login, and the PuzzleMe player only loads inside the paper's own page | The subscriber's own logged-in browser, so the connector extension. A server can't do this, and shouldn't try. |
+
+**The options for "paste a URL":**
+
+| | What it gives | Cost |
+|---|---|---|
+| **A tiny fetcher on a free serverless host** (e.g. a Cloudflare Worker on its free `workers.dev` address) | Anyone pastes a Guardian, Crosshare or SudokuPad/CTC link and hosts, with nothing installed. It does one thing: fetch a puzzle page from an allowed list of sites and return the puzzle (and answers, to the host only). Rooms stay peer-to-peer. | A free account; a few dozen lines; keep to an allow-list and modest use, as a polite reader of public pages |
+| A full server for rooms (a domain, plus rooms held on the server) | Rooms that don't depend on the host's tab, no PeerJS broker, public lobbies, accounts and stats later | Ongoing running and upkeep, security, likely a small monthly cost beyond free tiers; not needed for a group of friends |
+| A desktop app (paste a URL; it fetches anything) | The same as the fetcher, without a server | Every host installs it, plus Windows/macOS signing, updates, two platforms. Guests still need the web page. Not worth it. |
+| A domain on its own | A nicer address (can point at GitHub Pages and the fetcher) | About £10–15 a year; purely cosmetic |
+
+**Recommended path:**
+1. **The redesign (option B above).** The app hosts, so anyone can host the games that need no site: the bracket,
+   trivia, the clue race, generated sudokus. You keep the connector for Courier Mail.
+2. **The fetcher**, when paste-a-URL is wanted: then anyone can host Guardian, Crosshare and CTC/SudokuPad puzzles
+   with nothing installed. Courier Mail stays with whoever has a subscription and the connector.
+3. **A server for rooms, and a domain**, only if peer-to-peer proves unreliable or public lobbies and accounts are
+   wanted. The redesign keeps the host engine a plain module, so it could move onto a server later without a
+   rewrite.
+
+**Hosting and lobbies:** the app's home screen gets "Host a game". You pick the game, get a lobby with the invite link
+(or a short room code), and friends join. Race mode's lobby already works this way.
+
+**Non-puzzle games:** yes. The game-kind layer (above) takes any game that suits a host-run room: trivia, the
+bracket, word and drawing games, party games, anything turn-based or casual. Fast real-time games would suffer from
+going through the host's connection, so those aren't a good fit.
+
 ## Decision needed
 
 Go with option B before the expansion? Or keep the extension as host and add game kinds to it (option A)?

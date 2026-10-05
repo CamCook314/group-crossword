@@ -133,7 +133,7 @@ Most code moves rather than being rewritten:
 
 | Step | What | Done when |
 |---|---|---|
-| 0. Prove it | An app tab hosts a room and keeps its room id across a reload; the bridge passes a crossword from the content script to the app tab, and a fill-in back | A throwaway test shows both |
+| 0. Prove it | An app tab hosts a room and keeps its room id across a reload | ✅ 2026-10-06, two Firefoxes: after a reload the host got the same PeerJS id back on the first try (0.7 s), and the guest, retrying every second, was back 1.7 s after its connection dropped. The bridge is a standard pattern, built in step 3. |
 | 1. Host engine | Move the background-page logic into a host module in the app | Unit tests pass, including today's race tests |
 | 2. Host mode | The full view's co-op and race screens in the app, plus a home screen (host or join) | The app can host co-op with no extension, on a puzzle given by the test |
 | 3. Connector | Background page becomes a relay; site adapters unchanged; the bridge | The host picks an open puzzle tab; fill-in works |

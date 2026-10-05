@@ -5,9 +5,9 @@ import http from 'node:http';
 import { Builder, By } from 'selenium-webdriver';
 import firefox from 'selenium-webdriver/firefox.js';
 
-export const EXTENSION_ID = 'group-crossword@camcook314';
-export const GUEST_PORT = 8123;
-export const guestUrl = roomId => `http://localhost:${GUEST_PORT}/#${roomId}`;
+export const APP_PORT = 8123;
+/** The app, served locally: `appUrl('host')` to host, `appUrl(roomId)` to join. */
+export const appUrl = (hash = '') => `http://localhost:${APP_PORT}/${hash && '#' + hash}`;
 
 /** How to open each test crossword, find its cells, and reveal its answers, from the host's side. */
 export const SITES = {
@@ -70,31 +70,29 @@ export const readSite = (host, site) =>
     site.letter,
   );
 
-export function buildExtension() {
-  execSync('npx web-ext build -s extension/dist -a e2e/.artifacts -n group-crossword.zip --overwrite-dest', { stdio: 'ignore' });
+export function buildConnector() {
+  execSync('npx web-ext build -s connector/dist -a e2e/.artifacts -n group-crossword.zip --overwrite-dest', { stdio: 'ignore' });
 }
 
-/** Serves the built guest page locally. */
-export function startGuestServer() {
+/** Serves the built app locally. The connector's bridge runs on localhost too. */
+export function startAppServer() {
   return http
     .createServer((req, res) => {
       const file = req.url === '/' ? 'index.html' : req.url.slice(1).split('?')[0];
       try {
         const type = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html';
-        res.writeHead(200, { 'content-type': type }).end(readFileSync(`guest/dist/${file}`));
+        res.writeHead(200, { 'content-type': type }).end(readFileSync(`app/dist/${file}`));
       } catch {
         res.writeHead(404).end();
       }
     })
-    .listen(GUEST_PORT);
+    .listen(APP_PORT);
 }
 
 export async function launch(withExtension) {
   const options = new firefox.Options();
   if (!process.env.HEADED) options.addArguments('-headless');
-  // System access lets the test open the extension's pages, which WebDriver can't navigate to directly.
-  const service = new firefox.ServiceBuilder().addArguments('--allow-system-access');
-  const driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).setFirefoxService(service).build();
+  const driver = await new Builder().forBrowser('firefox').setFirefoxOptions(options).build();
   if (withExtension) await driver.installAddon('e2e/.artifacts/group-crossword.zip', true);
   return driver;
 }
@@ -113,20 +111,6 @@ export async function until(what, fn, timeout = 20000) {
     await new Promise(r => setTimeout(r, 250));
   }
   throw new Error(`Timed out waiting for: ${what} (last: ${JSON.stringify(last)})`);
-}
-
-/** Opens the sidebar page in a new tab. Call it while the browser has a single window. */
-export async function openSidebarTab(driver) {
-  const before = await driver.getAllWindowHandles();
-  await driver.setContext(firefox.Context.CHROME);
-  await driver.executeScript(
-    `const url = WebExtensionPolicy.getByID(arguments[0]).getURL('sidebar.html');
-     const { gBrowser } = Services.wm.getMostRecentWindow('navigator:browser');
-     gBrowser.selectedTab = gBrowser.addTab(url, { triggeringPrincipal: Services.scriptSecurityManager.getSystemPrincipal() });`,
-    EXTENSION_ID,
-  );
-  await driver.setContext(firefox.Context.CONTENT);
-  return switchToNewWindow(driver, before, 'sidebar tab');
 }
 
 /** Waits for a tab or window that wasn't in `before`, and switches to it. */

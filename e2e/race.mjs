@@ -1,6 +1,6 @@
-// End-to-end race in real Firefox: the host runs races from the race view on live crosswords, two racers race on
-// the guest page, and each site's own Reveal supplies the answers they type (so the extension's answers are checked
-// against the site, not against themselves).
+// End-to-end race in real Firefox: the host runs races from the app (with the connector reading live crosswords), two
+// racers race in the app, and each site's own Reveal supplies the answers they type (so the connector's answers are
+// checked against the site, not against themselves).
 //
 //   npm run build && npm run e2e:race          both sites
 //   npm run e2e:race -- crosshare              just one (crosshare | puzzleme)
@@ -8,13 +8,13 @@
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the race view and racers' pages.
 import { writeFileSync } from 'node:fs';
 import { By, Key } from 'selenium-webdriver';
-import { buildExtension, chosenSites, guestUrl, launch, openSidebarTab, readSite, SITES, startGuestServer, step, switchToNewWindow, until } from './helpers.mjs';
+import { appUrl, buildConnector, chosenSites, launch, readSite, SITES, startAppServer, step, switchToNewWindow, until } from './helpers.mjs';
 
 const PENALTY = 8; // seconds; short, so the test can check the cooldown
 
 const sites = chosenSites();
-buildExtension();
-const server = startGuestServer();
+buildConnector();
+const server = startAppServer();
 const host = await launch(true);
 const sam = await launch(false);
 const ana = await launch(false);
@@ -35,25 +35,23 @@ const both = async check => (await check(sam)) && (await check(ana));
 const shot = async (driver, file) => process.env.SHOTS && writeFileSync(`e2e/.artifacts/${file}.png`, await driver.takeScreenshot(), 'base64');
 
 try {
-  // The sidebar and the crossword get a window each, so the crossword tab stays visible.
-  const sidebarWindow = await openSidebarTab(host);
+  // The host's app tab and the crossword get a window each, so the crossword tab stays visible.
+  await host.get(appUrl('host'));
+  const raceWindow = await host.getWindowHandle();
+  const raceView = () => host.switchTo().window(raceWindow);
   await host.switchTo().newWindow('window');
   const siteWindow = await host.getWindowHandle();
 
-  // --- Race mode, the race view, a session ---
-  await host.switchTo().window(sidebarWindow);
+  // --- Race mode, a session ---
+  await raceView();
   await (await button(host, 'Race')).click();
-  const before = await host.getAllWindowHandles();
-  await (await button(host, 'Open full view')).click();
-  const raceWindow = await switchToNewWindow(host, before, 'full view');
-  const raceView = () => host.switchTo().window(raceWindow);
   await (await button(host, 'Start session')).click();
   await until('session live', async () => (await text(host, '.session-status')) === 'Live', 30000);
   const roomId = new URL(await host.findElement(By.css('.link input')).getAttribute('value')).hash.slice(1);
-  step(`race mode on; race view open; session ${roomId} live`);
+  step(`race mode on in the host's app tab; session ${roomId} live`);
 
   async function join(racer, name) {
-    await racer.get(guestUrl(roomId));
+    await racer.get(appUrl(roomId));
     await (await until('name box', () => racer.findElement(By.css('.join input')))).sendKeys(name);
     await racer.findElement(By.css('.join button[type=submit]')).click();
   }
@@ -89,11 +87,11 @@ try {
       return t.includes(`(${side}×${side})`) && t.includes('squares ✓') && t;
     }, 30000);
 
-    // Play opens the racer's page for the host, in a new window, with their name filled in.
+    // "Join as a racer" opens the racer's page for the host, in a new tab, with their name filled in.
     if (name === sites[0]) {
       const windows = await host.getAllWindowHandles();
       await (await button(host, 'Join as a racer')).click();
-      await switchToNewWindow(host, windows, 'Play window');
+      await switchToNewWindow(host, windows, 'racer tab');
       const url = await until('Play window address', async () => {
         const u = await host.getCurrentUrl();
         return u.includes(roomId) && u;

@@ -1,4 +1,7 @@
 // Messages between the host's extension and the guests' pages.
+import { parseBracketMessage, type BracketMessage, type BracketState } from './games/bracket';
+import { parseClueRaceMessage, type ClueRaceMessage, type ClueRaceState } from './games/clues';
+import { parseTriviaMessage, type TriviaMessage, type TriviaState } from './games/trivia';
 import type { Puzzle } from './puzzle';
 import type { RaceSettings, Standing } from './race';
 import type { ReplayEvent } from './replay';
@@ -28,8 +31,11 @@ export interface Suggestion {
  * people agree, or automatically (trusted). */
 export type AcceptMode = 'manual' | 'agreed' | 'trusted';
 
+/** What the room is playing: a puzzle together (co-op) or against each other (race), or a game that needs no puzzle. */
+export type Mode = 'coop' | 'race' | 'clues' | 'trivia' | 'bracket';
+
 export interface RoomState {
-  mode: 'coop' | 'race';
+  mode: Mode;
   acceptMode: AcceptMode;
   /** In a race, only sent once the countdown starts. */
   puzzle: Puzzle | null;
@@ -44,8 +50,20 @@ export interface RoomState {
   check: { label: string; wrong: number; at: number } | null;
   /** Co-op: once every square is filled, whether it's right ('full' when there are no answers to tell). */
   finished: 'solved' | 'wrong' | 'full' | null;
+  /** Sudoku: the pencil marks players have chosen to share, by player id. */
+  marks?: Record<string, PencilMarks>;
   /** Race only. */
   race: RaceState | null;
+  /** The games that need no puzzle, each in its own mode. */
+  clues?: ClueRaceState;
+  trivia?: TriviaState;
+  bracket?: BracketState;
+}
+
+/** A player's sudoku pencil marks: the digits noted in each square's corners and centre. */
+export interface PencilMarks {
+  corner: Record<number, string>;
+  centre: Record<number, string>;
 }
 
 /** A racer's grid, for racers who have finished to watch the others. */
@@ -101,7 +119,9 @@ export type HostMessage =
   /** The co-op solve so far, for watching it back (asked for with get-replay). */
   | { t: 'replay'; events: ReplayEvent[]; durationMs: number }
   /** To racers who have finished: everyone's grid, live. */
-  | { t: 'race-boards'; boards: RacerBoard[] };
+  | { t: 'race-boards'; boards: RacerBoard[] }
+  /** A word for one player only, shown for a moment (e.g. "Not it, try again"). */
+  | { t: 'note'; text: string; tone: 'good' | 'bad' | 'info' };
 
 export type GuestMessage =
   | { t: 'hello'; clientId: string; name: string; color: string }
@@ -110,7 +130,10 @@ export type GuestMessage =
   | { t: 'suggest'; clueId: string; letters: string[] }
   /** A racer's whole grid, whenever it changes. */
   | { t: 'race-letters'; letters: string[] }
-  | { t: 'get-replay' };
+  | { t: 'get-replay' }
+  | ClueRaceMessage
+  | TriviaMessage
+  | BracketMessage;
 
 export const normalizeLetter = (s: unknown) => (typeof s === 'string' && /^[a-z]$/i.test(s) ? s.toUpperCase() : '');
 
@@ -136,6 +159,6 @@ export function parseGuestMessage(data: unknown): GuestMessage | null {
     case 'get-replay':
       return { t: 'get-replay' };
     default:
-      return null;
+      return parseClueRaceMessage(m) ?? parseTriviaMessage(m) ?? parseBracketMessage(m);
   }
 }

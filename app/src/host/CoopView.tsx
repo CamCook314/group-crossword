@@ -57,14 +57,24 @@ export function CoopView({ status, replay, send }: Props) {
       )}
 
       <aside>
-        {status.otherPuzzle && (
-          <section class="other-puzzle">
-            <p>
-              Another crossword is open: <b>{status.otherPuzzle.title}</b>
-            </p>
-            <button class="secondary" onClick={() => send({ type: 'switch-puzzle' })}>
-              Play it instead
-            </button>
+        {status.pagePuzzle && (
+          <section class="puzzle-info">
+            <h2>Puzzle</h2>
+            <p>{status.pagePuzzle.title}</p>
+            {status.answers !== null && (
+              <p class="hint answers">
+                Answers:{' '}
+                {status.answers === 'reading' ? 'reading…' : status.answers === 'none' ? 'not found' : `${status.answers} squares ✓`}
+              </p>
+            )}
+            {status.otherPuzzle && (
+              <p class="other-puzzle">
+                Also open: <b>{status.otherPuzzle.title}</b>{' '}
+                <button class="secondary" onClick={() => send({ type: 'switch-puzzle' })}>
+                  Play it instead
+                </button>
+              </p>
+            )}
           </section>
         )}
         <section>

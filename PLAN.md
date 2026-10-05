@@ -1,8 +1,8 @@
 # Group Crossword — Plan
 
 Solve crosswords together on the sites we already use (Crosshare, Courier Mail) without screen-sharing.
-The host opens the crossword on the real site in Firefox, and everyone plays in Group Crossword's own copy of it: the
-host on a full-page view, friends from a link. Friends suggest answers, which the host accepts or rejects (or which go
+The host opens the crossword on the real site in Firefox, and everyone plays in Group Crossword's own copy of it, a web
+page: the host in a tab that runs the game, friends from a link. Friends suggest answers, which the host accepts or rejects (or which go
 in by themselves, if the host chooses). Once it's solved, the host fills it in on the real site with one click.
 
 Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.md). Ideas for more competitive modes:
@@ -12,12 +12,12 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
 
 | Topic | Decision |
 |---|---|
-| Host software | Firefox extension (Manifest V2, persistent background page). Installed permanently via free *unlisted* Mozilla signing. |
+| The app | One web page for everyone, hosts included, on GitHub Pages: `camcook314.github.io/group-crossword/` (`#host` to host, `#<room>` to join). No domain needed. The host's tab runs the game. Redesigned on 2026-10-06 from an extension that hosted everything; see [redesign.md](redesign.md). |
+| The connector | A small Firefox extension (Manifest V2), installed permanently via free *unlisted* Mozilla signing. It reads puzzles and answers from the sites the host has open and fills in the solved grid; nothing else. |
 | Guests | Open a link in any desktop browser. Nothing to install. |
-| Guest page hosting | Static site on GitHub Pages: `camcook314.github.io/group-crossword/#<room>`. No domain needed. |
 | Networking | WebRTC peer-to-peer via PeerJS; host is the hub. PeerJS's free public broker is only used to set up connections; PeerJS also includes free TURN relays for strict networks. |
 | Getting the puzzle | Per-site adapters that read the page's own elements/data. **Not OCR** — the DOM gives exact text and exact cell positions (see Feasibility). |
-| Source of truth | The shared grid in the host's extension. It copies the site's letters until play starts in the tool (the first letter written or accepted); after that the site is left alone, with a notice saying so, until the host fills it in once it's solved. Changed after the first real session: typing into the site from another tab was unreliable (sites pause in the background), and the sites' own Check and "finished" dialogs never reached the guests. |
+| Source of truth | The shared grid in the host's tab. It copies the site's letters until play starts in the tool (the first letter written or accepted); after that the site is left alone, with a notice saying so, until the host fills it in once it's solved. Changed after the first real session: typing into the site from another tab was unreliable (sites pause in the background), and the sites' own Check and "finished" dialogs never reached the guests. |
 | Answers | Never leave the host's machine (Crosshare's page data contains the solution — the adapter drops it). |
 | Puzzle type | Almost exclusively cryptics. Enumerations like (3,6) come through in the clue text. |
 | Group size | Host + usually up to 3 guests. |
@@ -28,20 +28,20 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
  HOST'S FIREFOX
  ┌───────────────────────────────────────────────────────┐
  │ Crossword tab (Crosshare page / PuzzleMe iframe)      │
- │   content script (site adapter):                      │
+ │   connector content script (site adapter):            │
  │   - reads the grid, clues, letters and answers        │
  │   - shows a notice once play has moved to the tool    │
  │   - fills in the solved grid                          │
- │                 ⇅ extension messaging                 │
- │ Background page: session, players, the shared grid,   │
- │   suggestion queue, checks, PeerJS host               │
- │ Sidebar: start/stop, copy link, players, accept/reject│
- │ Full view (extension page): where the host plays:     │
- │   the board, suggestions, players, tools; or the race │
+ │             ⇅ connector background page (relay)       │
+ │ Group Crossword tab (the app, #host)                  │
+ │   bridge content script ⇄ window.postMessage          │
+ │   host engine: players, the shared grid, suggestion   │
+ │   queue, checks, races; PeerJS host                   │
+ │   host screens: the board, suggestions, players, tools│
  └──────────────────────────┬────────────────────────────┘
                             │ WebRTC data channels
              ┌──────────────┼──────────────┐
-          Guest page     Guest page     Guest page   (GitHub Pages)
+        the same app, as a guest, for each friend   (GitHub Pages)
 ```
 
 ## Player experience
@@ -74,10 +74,10 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
   the grid: as drafts when suggesting, straight in when writing.
 - Define: look up a word's meanings and synonyms (Datamuse, free, no key; only the word looked up leaves the page).
 - Notes: a private scratchpad under the grid, kept in your browser per puzzle.
-- Replay: watch the solve back, with a slider and speeds. The host's extension records each letter that changes in the
+- Replay: watch the solve back, with a slider and speeds. The host's tab records each letter that changes in the
   shared grid and whose it was (grey for agreed ones), in memory only. Letters already there when the puzzle opens
   come first; a new puzzle starts a new replay.
-- Check (the host's): a square, the selected answer or the whole grid, against the answers the extension read. Wrong
+- Check (the host's): a square, the selected answer or the whole grid, against the answers the connector read. Wrong
   squares are marked red for everyone until they change, and everyone sees a message ("Checked 1A: nothing wrong ✓").
 - When the grid is full, everyone sees "Solved! 🎉", or that something's not right (or just that it's full, if the
   answers couldn't be read).
@@ -93,16 +93,19 @@ Race mode, an alternative game mode, has its own plan: [RACE_MODE.md](RACE_MODE.
   letters so they combine into one card; yours have **✕ Take back**.
 - What Enter says follows the host's accept setting ("Enter" rather than "Suggest" when it goes straight in).
 
-**Host** (plays in the full view)
-- **Open full view** in the sidebar opens an extension page with the same board guests see, everyone's suggestions on
-  it. **Write in** (the default) puts letters straight into the shared grid; **Suggest** makes them drafts and
+**Host** (plays in the Group Crossword tab, opened from the connector's toolbar button or the home page's
+**Host a game**)
+- The host's tab shows the same board guests see, everyone's suggestions on it. **Write in** (the default) puts letters straight into the shared grid; **Suggest** makes them drafts and
   suggestions like a guest's, for when the host isn't sure. Beside it: the suggestion queue, the players, the tools,
   Check, and once it's solved, **Fill in the crossword**, which brings the site's tab forward and types the grid in.
   In Race mode the same page is the race view.
-- The host's selected clue in the full view is broadcast as the host's badge.
+- The host's selected clue is broadcast as the host's badge. The host's name and colour are set with the button at the
+  top right.
+- Reloading the tab carries on: the game is saved in the tab after every change, the room keeps its id, and guests
+  reconnect by themselves. Closing it ends the session (it asks first).
 - The session sticks to its crossword. Another crossword opened in another tab is offered ("Play it instead") rather
   than taking over; before a session starts and before any play in the tool, the tool simply follows the newest one.
-- The sidebar (and the full view) lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
+- The host's tab lists pending suggestions (player, clue, letters, clashes with existing letters highlighted) with Accept / Reject.
   Identical suggestions (same clue, same letters) combine into one card ("Sam + Ana", "2 agree"), and cards with more
   agreement go to the top. Accept and Reject act on the whole card; Reject tells everyone on it. Suggestions that only
   partly match stay separate cards (their shared letters still show grey on the grid).
@@ -154,6 +157,7 @@ Notes:
 | 7. Robustness + install | Reconnects, host page reload, switching puzzles; unlisted signing | A full session with friends without restarts | ✅ Signed (0.3.0, unlisted) and installed; a real session ran without restarts. Guests rejoin as the same player, the host re-registers with the broker, switching puzzles works. |
 | 8. Polish | Word breaks, linked answers, Agree, accept settings, typing, anagram pad, replay, the host's full view | Both sites end to end | ✅ `npm run e2e`, both sites, 2026-10-03 |
 | 9. Play in our tool | The notes from the first real session ([TODO.md](TODO.md)): the shared grid lives in the extension, Check, Solved and Fill in, the session sticks to its crossword, the host can suggest, merged suggestions, the page fills the window with zoom, Define and Notes | Both sites end to end | ✅ `npm run e2e`, both sites, 2026-10-04 |
+| 10. Redesign | The app hosts and the extension becomes a connector ([redesign.md](redesign.md)) | Both sites end to end, including the host's tab reloading | ✅ `npm run e2e`, 2026-10-07 |
 
 ## Messages
 
@@ -167,15 +171,20 @@ See [shared/protocol.ts](shared/protocol.ts).
   changes your name or colour), `select` (current clue), `suggest` (clue, letters with blanks, merged into your
   earlier suggestion for the clue; all blank takes it back; Agree sends the same letters), `get-replay`. Validated by
   `parseGuestMessage`.
-- The guest page copes with older extensions (fields they don't send get defaults), because it deploys before the
-  host has signed and installed a new version.
+- The app ↔ connector messages ([shared/connector.ts](shared/connector.ts)) pass through a bridge content script on the
+  app's page (Firefox doesn't let pages message extensions directly): the open puzzle pages, their snapshots and
+  answers one way; notices and fill-ins the other. They carry a version, so the app can say when the connector is too
+  old.
+- Guests' pages cope with hosts on older versions (fields they don't send get defaults). Since the redesign, host and
+  guests run the same deployed app, so that only matters for hosts still on the old extension.
 
 ## Tech
 
 TypeScript throughout, bundled by one small esbuild script ([build.mjs](build.mjs)) with a hand-written MV2 manifest
-(WXT and Vite dropped: fewer moving parts). Preact for the guest page and sidebar. PeerJS for WebRTC. web-ext for running
+(WXT and Vite dropped: fewer moving parts). Preact for the app. PeerJS for WebRTC. web-ext for running
 and signing. Vitest for unit tests; Selenium driving real Firefox for the end-to-end test ([e2e/run.mjs](e2e/run.mjs)).
-Needs Firefox 140+, because the manifest declares that the extension shares website content, which Mozilla now requires.
+The connector needs Firefox 140+, because its manifest declares that it shares website content, which Mozilla now
+requires. The app itself runs in any modern browser.
 [.gitattributes](.gitattributes) keeps every file's line endings LF, so a Windows checkout doesn't change them.
 
 ## Risks

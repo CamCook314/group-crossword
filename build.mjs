@@ -21,7 +21,7 @@ const common = {
 if (want('app')) {
   rmSync('app/dist', { recursive: true, force: true });
   mkdirSync('app/dist', { recursive: true });
-  for (const f of ['index.html', 'style.css', 'panel.css', 'host.css']) cpSync(`app/${f}`, `app/dist/${f}`);
+  for (const f of ['index.html', 'style.css', 'games.css', 'trivia.css', 'clues.css', 'panel.css', 'host.css']) cpSync(`app/${f}`, `app/dist/${f}`);
   for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `app/dist/${f}`);
   const options = { ...common, entryPoints: ['app/src/main.tsx'], outfile: 'app/dist/main.js', target: 'es2020' };
   if (serve) {

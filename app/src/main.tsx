@@ -4,6 +4,7 @@ import { ColorPicker } from '../../shared/ColorPicker';
 import type { CoopReplay } from '../../shared/CoopSolver';
 import { COLORS, type GuestMessage, type Player, type RacerBoard, type RoomState } from '../../shared/protocol';
 import { Board } from './Board';
+import { GameScreen, isGameMode } from './games/GameScreen';
 import { HostApp } from './host/HostApp';
 import { connect, type Connection } from './connection';
 import { PlayerList } from './PlayerList';
@@ -78,8 +79,8 @@ function App() {
         if (msg.t === 'race-letters') setRestore(msg.letters);
         if (msg.t === 'replay') setReplay({ events: msg.events, durationMs: msg.durationMs });
         if (msg.t === 'race-boards') setBoards(msg.boards);
-        if (msg.t === 'rejected') {
-          setToast(`The host rejected your ${msg.clueId} suggestion.`);
+        if (msg.t === 'rejected' || msg.t === 'note') {
+          setToast(msg.t === 'note' ? msg.text : `The host rejected your ${msg.clueId} suggestion.`);
           setTimeout(() => setToast(null), 4000);
         }
       },
@@ -110,8 +111,9 @@ function App() {
       {state?.mode === 'race' && (
         <Race state={state} me={profile.clientId} send={m => conn.current?.send(m)} notice={notice} restore={restore} boards={boards} />
       )}
+      {state && isGameMode(state.mode) && <GameScreen state={state} me={profile.clientId} send={m => conn.current?.send(m)} />}
       {/* Extensions before race mode (0.3.0 and earlier) don't send a mode: that's co-op. */}
-      {state && state.mode !== 'race' && (
+      {state && state.mode !== 'race' && !isGameMode(state.mode) && (
         <Board
           state={state}
           me={profile.clientId}

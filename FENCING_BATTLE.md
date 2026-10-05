@@ -191,7 +191,7 @@ the code notes this isn't atomic). A "BattleBot" posts "Team N [names] won! Time
 | Piece | Where | Fencing uses it for | Battle uses it for |
 |---|---|---|---|
 | Answers held only by the host, both sites, alternate solutions | adapters' `readAnswers`, [shared/answers.ts](shared/answers.ts) | Checking claims | Checking claims for pickups, finish, and the reveal-a-letter power-up |
-| Lobby, settings, 3-2-1 countdown, phases, End, New race | [extension/src/raceHost.ts](extension/src/raceHost.ts), [extension/src/RaceView.tsx](extension/src/RaceView.tsx), [guest/src/Race.tsx](guest/src/Race.tsx) | The same | The same |
+| Lobby, settings, 3-2-1 countdown, phases, End, New race | [app/src/host/raceHost.ts](app/src/host/raceHost.ts), [app/src/host/RaceView.tsx](app/src/host/RaceView.tsx), [app/src/Race.tsx](app/src/Race.tsx) | The same | The same |
 | Private grid per player, sent to the host on change, restored on rejoin | `race-letters` in [shared/protocol.ts](shared/protocol.ts), `RaceHost.join` | Each player's drafts | The whole game, unchanged |
 | Checking and penalties | [shared/race.ts](shared/race.ts): `closest`, `isSolved`, penalty with cooldown | Checking one answer; the lockout works like the cooldown | Finishing, unchanged |
 | One clock (the host's), times sent as "ms as of now" | `clockMs` in `RaceState` | Lockouts | Power-up durations |
@@ -333,7 +333,7 @@ Starter set: Hide lengths, Scramble, Freeze, Dark, Reveal a letter.
 - `shared/fencing.ts`, pure and unit tested: is the claim valid (playing, not locked out, answer exists, not already
   claimed, every square filled); is it right (against any solution consistent with existing claims); points for new
   squares; lockout; answers completed by crossers; end detection; places by score; "can't be caught".
-- `extension/src/fencingHost.ts`, like `RaceHost`: phases, players by client id, the shared claimed board, drafts,
+- `app/src/host/fencingHost.ts`, like `RaceHost`: phases, players by client id, the shared claimed board, drafts,
   timers, and what players may see. It's wired into `background.ts` next to the race.
 
 **Player's page:** the shared grid component with claimed squares locked and tinted by claimer; Enter to claim; feedback

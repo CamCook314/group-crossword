@@ -1,11 +1,20 @@
-// The host's screens: the session, a mode switch, your name and colour, and either the co-op board (with the
-// suggestion queue and tools) or the race. Hosting itself runs in this tab (host.ts).
+// The host's screens: the session, a mode switch, your name and colour, and the co-op board (with the suggestion
+// queue and tools), the race, or a game that needs no puzzle. Hosting itself runs in this tab (host.ts).
 import { useEffect, useState } from 'preact/hooks';
 import { ColorPicker } from '../../../shared/ColorPicker';
+import { GameScreen } from '../games/GameScreen';
 import { CoopView } from './CoopView';
 import { startHosting } from './host';
 import { RaceView } from './RaceView';
-import type { Command, HostProfile, HostScreens } from './types';
+import type { Command, HostProfile, HostScreens, Mode } from './types';
+
+const MODES: [Mode, string][] = [
+  ['coop', 'Co-op'],
+  ['race', 'Race'],
+  ['clues', 'Clue race'],
+  ['trivia', 'Trivia'],
+  ['bracket', 'Bracket'],
+];
 
 let send: (cmd: Command) => void = () => {};
 
@@ -13,6 +22,13 @@ export function HostApp() {
   const [screens, setScreens] = useState<HostScreens | null>(null);
   const [connector, setConnector] = useState<number | null>(null);
   const [editing, setEditing] = useState(false);
+  const [note, setNote] = useState<HostScreens['note']>(null);
+  // A game's word for the host, for a moment.
+  useEffect(() => {
+    setNote(screens?.note ?? null);
+    const timer = setTimeout(() => setNote(null), 4000);
+    return () => clearTimeout(timer);
+  }, [screens?.note?.at]);
   useEffect(() => {
     // The host's own stylesheets, on top of the guests' ones.
     for (const href of ['panel.css', 'host.css']) document.head.append(Object.assign(document.createElement('link'), { rel: 'stylesheet', href }));
@@ -28,9 +44,9 @@ export function HostApp() {
       <header class="top">
         <h1>Group Crossword</h1>
         <div class="modes" title={racing ? 'Finish or end the race first' : undefined}>
-          {(['coop', 'race'] as const).map(m => (
+          {MODES.map(([m, label]) => (
             <button class={m === mode ? 'mode picked' : 'mode'} disabled={racing} onClick={() => send({ type: 'mode', mode: m })}>
-              {m === 'coop' ? 'Co-op' : 'Race'}
+              {label}
             </button>
           ))}
         </div>
@@ -50,13 +66,21 @@ export function HostApp() {
           <span class="dot" style={{ background: host.color }} /> {host.name}
         </button>
       </header>
-      {connector === null && !status.pagePuzzle && (
+      {connector === null && !status.pagePuzzle && (mode === 'coop' || mode === 'race') && (
         <p class="hint connector-missing">
           To play a crossword from Crosshare or Courier Mail, install the Group Crossword extension and open the crossword in
           another tab.
         </p>
       )}
-      {mode === 'coop' ? <CoopView status={status} replay={screens.replay} send={send} /> : <RaceView status={screens.race} send={send} />}
+      {mode === 'coop' && <CoopView status={status} replay={screens.replay} send={send} />}
+      {mode === 'race' && <RaceView status={screens.race} send={send} />}
+      <GameScreen
+        state={status.state}
+        me="host"
+        send={msg => send({ type: 'play', msg })}
+        host={{ clues: cmd => send({ type: 'clues', cmd }), trivia: cmd => send({ type: 'trivia', cmd }), bracket: cmd => send({ type: 'bracket', cmd }) }}
+      />
+      {note && <div class="toast">{note.text}</div>}
       {editing && <YouDialog host={host} onSave={h => (send({ type: 'host', host: h }), setEditing(false))} onClose={() => setEditing(false)} />}
     </main>
   );

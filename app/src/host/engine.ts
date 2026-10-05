@@ -4,11 +4,17 @@
 // and saved.
 import type { Solutions } from '../../../shared/answers';
 import type { FromApp, PageSnapshot } from '../../../shared/connector';
+import type { BracketMessage } from '../../../shared/games/bracket';
+import type { ClueRaceMessage } from '../../../shared/games/clues';
+import type { TriviaMessage } from '../../../shared/games/trivia';
 import { normalizeLetter, type AcceptMode, type GuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../../shared/protocol';
 import { puzzleKey } from '../../../shared/puzzle';
 import { isSolved, squareStatus } from '../../../shared/race';
 import type { ReplayEvent } from '../../../shared/replay';
 import { AGREED_BY, cellsToApply, groupSuggestions, pruneSuggestions, sameLetters, upsertSuggestion } from '../../../shared/suggestions';
+import { BracketHost, type SavedBracket } from './games/bracketHost';
+import { ClueRaceHost } from './games/cluesHost';
+import { TriviaHost } from './games/triviaHost';
 import { RaceHost, type SavedRace } from './raceHost';
 import type { Command, HostProfile, HostScreens, HostStatus, Mode, PagePuzzle, Session } from './types';
 
@@ -39,6 +45,9 @@ export interface SavedEngine {
   autoAccepted: string[];
   history: HostEngine['history'];
   race: SavedRace;
+  clues: unknown;
+  trivia: unknown;
+  bracket: SavedBracket;
 }
 
 export class HostEngine {
@@ -74,6 +83,12 @@ export class HostEngine {
   /** The notice last sent to each page, so it's only sent when it changes. */
   private notices = new Map<string, string | null>();
   readonly race: RaceHost;
+  /** The games that need no puzzle. */
+  private readonly clues: ClueRaceHost;
+  private readonly trivia: TriviaHost;
+  private readonly bracket = new BracketHost();
+  /** A word for the host only, from one of those games, shown for a moment. */
+  private hostNote: HostScreens['note'] = null;
 
   constructor(
     private io: EngineIO,
@@ -82,6 +97,15 @@ export class HostEngine {
     this.host = settings.host;
     this.acceptMode = settings.acceptMode;
     this.race = new RaceHost(() => this.update());
+    const games = {
+      changed: () => this.update(),
+      tell: (playerId: string, text: string, tone: 'good' | 'bad' | 'info') => {
+        if (playerId === HOST_ID) this.hostNote = { text, tone, at: Date.now() };
+        else this.io.toGuests({ t: 'note', text, tone }, playerId);
+      },
+    };
+    this.clues = new ClueRaceHost(games);
+    this.trivia = new TriviaHost(games);
   }
 
   save(): SavedEngine {
@@ -100,6 +124,9 @@ export class HostEngine {
       autoAccepted: [...this.autoAccepted],
       history: this.history,
       race: this.race.save(),
+      clues: this.clues.save(),
+      trivia: this.trivia.save(),
+      bracket: this.bracket.save(),
     };
   }
 
@@ -119,6 +146,9 @@ export class HostEngine {
     this.autoAccepted = new Set(saved.autoAccepted);
     this.history = saved.history;
     this.race.restore(saved.race, now);
+    this.clues.restore(saved.clues);
+    this.trivia.restore(saved.trivia);
+    if (saved.bracket) this.bracket.restore(saved.bracket);
   }
 
   private samePuzzle = (p: PageSnapshot) => Boolean(this.page) && puzzleKey(p.puzzle) === puzzleKey(this.page!.puzzle);
@@ -128,9 +158,28 @@ export class HostEngine {
   /** The latest other puzzle open, if any. */
   private otherPage = () => [...this.pages.values()].reverse().find(p => !this.samePuzzle(p)) ?? null;
   private onlineIds = () => [...this.guests.values()].filter(p => p.online).map(p => p.id);
+  /** Everyone playing a game that needs no puzzle: the host plays too. */
+  private players = () => [HOST_ID, ...this.onlineIds()];
+  private hostPlayer = (): Player => ({ id: HOST_ID, ...this.host, clueId: this.hostClueId ?? this.page?.clueId ?? null, host: true, online: true });
   private replay = () => ({ events: this.history.events, durationMs: this.history.events.at(-1)?.at ?? 0 });
 
   roomState(): RoomState {
+    const { mode } = this;
+    if (mode === 'clues' || mode === 'trivia' || mode === 'bracket') {
+      return {
+        mode,
+        acceptMode: this.acceptMode,
+        puzzle: null,
+        letters: [],
+        players: [this.hostPlayer(), ...this.guests.values()],
+        suggestions: [],
+        wrong: [],
+        check: null,
+        finished: null,
+        race: null,
+        [mode]: this[mode].state(),
+      };
+    }
     if (this.mode === 'race') {
       return {
         mode: this.mode,
@@ -150,7 +199,7 @@ export class HostEngine {
       acceptMode: this.acceptMode,
       puzzle: this.page?.puzzle ?? null,
       letters: this.grid,
-      players: [{ id: HOST_ID, ...this.host, clueId: this.hostClueId ?? this.page?.clueId ?? null, host: true, online: true }, ...this.guests.values()],
+      players: [this.hostPlayer(), ...this.guests.values()],
       suggestions: this.suggestions,
       wrong: [...this.wrong],
       check: this.check,
@@ -217,6 +266,7 @@ export class HostEngine {
         results: race.results,
       },
       replay: this.replay(),
+      note: this.hostNote,
     };
   }
 
@@ -247,13 +297,16 @@ export class HostEngine {
     const blocks = this.page.puzzle.blocks;
     const changed = cells.filter(({ cell, letter }) => cell >= 0 && cell < blocks.length && !blocks[cell] && this.grid[cell] !== letter);
     if (!changed.length) return;
+    // A new grid rather than changing it in place: the host's screens, in this same page, compare it to the last one.
+    this.grid = [...this.grid];
     for (const { cell, letter } of changed) {
       this.grid[cell] = letter;
       this.wrong.delete(cell);
     }
     const now = Date.now();
     this.history.startedAt ??= now;
-    this.history.events.push({ at: now - this.history.startedAt, board: 'shared', by, cells: changed.map(({ cell, letter }) => [cell, letter]) });
+    const event: ReplayEvent = { at: now - this.history.startedAt, board: 'shared', by, cells: changed.map(({ cell, letter }) => [cell, letter]) };
+    this.history = { ...this.history, events: [...this.history.events, event] };
   }
 
   /** Starts playing a puzzle: the grid as the site shows it, and nothing left over from the last one. */
@@ -319,6 +372,12 @@ export class HostEngine {
   }
 
   guestMessage(clientId: string, msg: Exclude<GuestMessage, { t: 'hello' }>) {
+    // The games that need no puzzle, which the host plays too.
+    if (clientId === HOST_ID || this.guests.has(clientId)) {
+      if (msg.t.startsWith('clues-')) return this.inGame('clues', () => this.clues.message(clientId, msg as ClueRaceMessage, this.players()));
+      if (msg.t.startsWith('trivia-')) return this.inGame('trivia', () => this.trivia.message(clientId, msg as TriviaMessage, this.players()));
+      if (msg.t.startsWith('bracket-')) return this.inGame('bracket', () => this.bracket.message(clientId, msg as BracketMessage, this.players()));
+    }
     const player = this.guests.get(clientId);
     if (!player) return;
     if (msg.t === 'get-replay') return this.io.toGuests({ t: 'replay', ...this.replay() }, clientId);
@@ -332,6 +391,13 @@ export class HostEngine {
       if (notQuite) this.io.toGuests({ t: 'not-quite', ...notQuite }, player.id);
       if (this.race.allFinished(this.onlineIds())) this.race.end(now);
     }
+    this.update();
+  }
+
+  /** Runs a game's move if that game is being played. */
+  private inGame(mode: Mode, move: () => void) {
+    if (this.mode !== mode) return;
+    move();
     this.update();
   }
 
@@ -464,6 +530,14 @@ export class HostEngine {
       case 'end-race':
         this.race.end(now);
         return this.update();
+      case 'play':
+        return this.guestMessage(HOST_ID, msg.msg);
+      case 'clues':
+        return this.inGame('clues', () => this.clues.command(msg.cmd, this.players()));
+      case 'trivia':
+        return this.inGame('trivia', () => this.trivia.command(msg.cmd, this.players()));
+      case 'bracket':
+        return this.inGame('bracket', () => this.bracket.command(msg.cmd));
       case 'new-race':
         if (this.race.running) return;
         this.race.reset();

@@ -1,0 +1,93 @@
+/* The games that need no puzzle: a page each, centred. */
+.game {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  display: grid;
+  gap: 14px;
+}
+.game h1 {
+  margin: 0;
+}
+.game .players {
+  margin-top: 8px;
+}
+
+/* Bracket */
+.bracket-form {
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+}
+.bracket-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+.bracket-sides {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+.bracket-side {
+  flex: 1;
+  min-height: 90px;
+  font-size: 20px;
+  background: var(--surface);
+  color: var(--fg);
+  border: 2px solid var(--line);
+}
+.bracket-side.picked {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+.versus {
+  align-self: center;
+  color: var(--muted);
+}
+.bracket-winner {
+  text-align: center;
+}
+.bracket-winner h2 {
+  margin: 0 0 4px;
+  font-size: 30px;
+}
+.bracket-rounds {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+}
+.bracket-round {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 170px;
+}
+.bracket-round h3 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.bracket-match {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: grid;
+  gap: 2px;
+}
+.bracket-match.current {
+  border-color: var(--accent);
+}
+.bracket-match .won {
+  font-weight: 700;
+}
+.bracket-match .lost {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.bracket-match .score {
+  font-size: 12px;
+}

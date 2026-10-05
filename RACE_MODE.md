@@ -2,7 +2,7 @@
 
 An alternative game mode. The host opens a crossword as usual and creates a **lobby**; friends join from a link;
 the host starts a countdown and everyone races to finish the same puzzle, each on their own private copy. The host
-watches everyone's boards live on a full-page race view (the host's full view in Race mode), and can also race in a
+watches everyone's boards live on the race view (the host's Group Crossword tab in Race mode), and can also race in a
 separate window.
 
 This builds on the co-op app described in [PLAN.md](PLAN.md). The parts that matter here are summarised below so this
@@ -25,16 +25,16 @@ file stands on its own.
 
 | Reused as is | Not used in a race |
 |---|---|
-| Firefox extension: background hub, PeerJS session, sidebar ([extension/src](extension/src)) | Overlay on the host's real crossword |
-| Guest page on GitHub Pages, join screen with name + colour wheel ([guest/src](guest/src)) | Suggestions, accept/reject/undo |
-| Site adapters that read the grid and clues ([extension/src/content](extension/src/content)) | Typing into the real site |
+| The host's tab: the host engine and PeerJS session ([app/src/host](app/src/host)) | Overlay on the host's real crossword |
+| Guest page on GitHub Pages, join screen with name + colour wheel ([app/src](app/src)) | Suggestions, accept/reject/undo |
+| Site adapters that read the grid and clues ([connector/src/content](connector/src/content)) | Typing into the real site |
 | Puzzle model and numbering ([shared/puzzle.ts](shared/puzzle.ts)) | |
 | Message validation, rejoining as the same player via a stored client id ([shared/protocol.ts](shared/protocol.ts)) | |
 
 ## How a race goes
 
 1. The host opens a crossword on Crosshare or Courier Mail.
-2. In the sidebar the host switches to **Race** and opens the **race view** (a full page). It shows the lobby link,
+2. In the Group Crossword tab the host switches to **Race**: the **race view**. It shows the lobby link,
    the lobby settings, the players who've joined, and whether the answers were found ("Answers: 169 squares ✓").
    If they weren't, racing isn't available for that puzzle (see Answers).
 3. Players open the link, pick a name and colour, and wait in the lobby, seeing who else has joined.
@@ -107,8 +107,7 @@ host the answers.
 
 ## The host
 
-- **Sidebar, Race mode:** a switch between Co-op and Race, an **Open full view** button, and a one-line status.
-- **Race view** (the host's full view, a full-page extension page opened from the sidebar, in Race mode):
+- **Race view** (the host's Group Crossword tab in Race mode; the switch between Co-op and Race is at the top):
   - *Lobby:* link + Copy, settings, players, answer status, **Start**. With a session running, a crossword opened in
     another tab doesn't take over: the lobby offers it ("Play it instead"), as co-op does.
   - *Racing:* one live board per racer (their letters, wrong ones marked), with % correct, % filled, time and place;
@@ -157,13 +156,15 @@ Sketch; final names in [shared/protocol.ts](shared/protocol.ts).
   (`shared/rawc.ts`); turning each site's data into answer grids and checking they fit the puzzle on screen in
   `shared/answers.ts`. Both unit tested with made-up data (no real puzzles in the repo). The end-to-end test checks the
   answers against each site's own Reveal.
-- [extension/src/raceHost.ts](extension/src/raceHost.ts): the race phases, per-racer letters, timing, and what racers
+- [app/src/host/raceHost.ts](app/src/host/raceHost.ts): the race phases, per-racer letters, timing, and what racers
   are allowed to see; unit tested. The background page wires it to the session. Co-op logic stays as it is.
-- The grid and clue lists in [guest/src/Board.tsx](guest/src/Board.tsx) move into `shared/` (with their CSS) so the
+- The grid and clue lists in [app/src/Board.tsx](app/src/Board.tsx) move into `shared/` (with their CSS) so the
   guest page and the race view both use them, like [shared/ColorPicker.tsx](shared/ColorPicker.tsx). Co-op and race
   differ only in what typing does; the race view shows small read-only boards.
-- The race view is [extension/src/RaceView.tsx](extension/src/RaceView.tsx), the Race half of the host's full view
-  ([extension/src/host.tsx](extension/src/host.tsx)); the sidebar gets the Co-op / Race switch.
+- The race view is [app/src/host/RaceView.tsx](app/src/host/RaceView.tsx), in the host's screens
+  ([app/src/host/HostApp.tsx](app/src/host/HostApp.tsx)), with the Co-op / Race switch at the top. The race itself is
+  [app/src/host/raceHost.ts](app/src/host/raceHost.ts), run by the host engine (it was the extension's background
+  page until the redesign).
 
 ## Build steps
 

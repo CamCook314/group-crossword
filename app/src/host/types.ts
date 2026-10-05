@@ -1,5 +1,8 @@
 // What the host's screens show, and what they can ask the host engine to do.
-import type { AcceptMode, Player, RacePhase, RaceResults, RoomState } from '../../../shared/protocol';
+import type { BracketCommand } from '../../../shared/games/bracket';
+import type { ClueRaceCommand } from '../../../shared/games/clues';
+import type { TriviaCommand } from '../../../shared/games/trivia';
+import type { AcceptMode, GuestMessage, Mode, Player, RacePhase, RaceResults, RoomState } from '../../../shared/protocol';
 import type { Puzzle } from '../../../shared/puzzle';
 import type { RaceSettings } from '../../../shared/race';
 import type { ReplayEvent } from '../../../shared/replay';
@@ -10,7 +13,7 @@ export interface HostProfile {
   color: string;
 }
 
-export type Mode = 'coop' | 'race';
+export type { Mode };
 
 /** A crossword open on a site. */
 export type PagePuzzle = { title: string; rows: number; cols: number } | null;
@@ -62,6 +65,8 @@ export interface HostScreens {
   status: HostStatus;
   race: RaceViewStatus;
   replay: { events: ReplayEvent[]; durationMs: number };
+  /** A word for the host from a game that needs no puzzle, shown for a moment. */
+  note: { text: string; tone: 'good' | 'bad' | 'info'; at: number } | null;
 }
 
 /** Anything the host's screens can ask for. */
@@ -89,4 +94,10 @@ export type Command =
   /** Check these squares against the answers; `label` says what was checked ("1A", "the grid"). */
   | { type: 'check'; cells: number[]; label: string }
   /** Type the solved grid into the crossword on the site. */
-  | { type: 'fill-site' };
+  | { type: 'fill-site' }
+  /** The host playing a game that needs no puzzle, as a player like everyone else. */
+  | { type: 'play'; msg: Exclude<GuestMessage, { t: 'hello' }> }
+  /** The host running a game that needs no puzzle. */
+  | { type: 'clues'; cmd: ClueRaceCommand }
+  | { type: 'trivia'; cmd: TriviaCommand }
+  | { type: 'bracket'; cmd: BracketCommand };

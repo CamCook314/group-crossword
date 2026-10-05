@@ -43,6 +43,28 @@ Logic Masters Deutschland and most of the variant-sudoku community.
 - **Free data:** Lichess has 6 million chess puzzles (CC0); Open Trivia DB is CC BY-SA 4.0 with no API key; Puzzled
   Pint's team puzzle-hunt archive is CC BY-NC-SA 4.0; there's a dataset of over half a million cryptic clues.
 
+## Step 0 findings: PuzzleMe sudokus (2026-10-06)
+
+Mapped in real Firefox on Amuse Labs' public demo sudokus. These are the test site, since Courier Mail blocks
+automated access:
+- `puzzleme.amuselabs.com/pmm/sudoku?id=al-sudoku-medium-20210109&set=demo-sudoku`, plus `…-easy-20201231` and
+  `…-hard-20210109`, and a 6×6 `al-sudoku-mini-20201231` in the same set;
+- `set=demo-special-sudoku` has Sudoku X (`cc9c693f`), a 6×6 killer (`0e3b27f9`), a Wordoku and a Picdoku.
+
+(The LA Times' free PuzzleMe sudokus only load embedded on latimes.com, behind ads and sign-up prompts, so they make
+a poor test site.)
+
+- **The player is built like the crossword one:** `.crossword.sudoku > .box` squares with `.endRow` after each row;
+  the digit in `.letter-in-box`; givens have `prerevealed-box`; thick walls are `box-right-wall` /
+  `box-bottom-wall`; pencil marks are `.pencil-box` elements (`invisible` when unset). The crossword content script's
+  grid reading works unchanged.
+- **Typing:** select a square with `mousedown` + `mouseup` (as for crosswords), then a `keydown` with the digit on
+  `input.dummy`. Unlike crosswords, the `input` event does nothing. `Delete` clears.
+- **Data:** `rawc` decodes with our decoder and gives `w`, `h`, `box` (the solution), `preRevealIdxs` (givens),
+  `subgridWidth` / `subgridHeight`, `isSudokuX` and `alphabets`. The existing PuzzleMe answer reader returns the
+  solution as is; only the check that answers fit the puzzle expects letters.
+- To confirm on Courier Mail itself: the same, while logged in.
+
 ## Decisions
 
 The host's answers (2026-10-06) are marked ✅; the rest are proposals.

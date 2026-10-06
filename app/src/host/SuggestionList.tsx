@@ -1,6 +1,8 @@
 // The host's suggestion queue: how friends' answers go in, Undo, and one card per suggestion (identical ones combined,
 // the most-agreed first) with Accept and Reject.
 import type { AcceptMode } from '../../../shared/protocol';
+import { isSudoku } from '../../../shared/puzzle';
+import { asPuzzle, squareLabel } from '../../../shared/sudoku/view';
 import { AGREED_COLOR, clashes, groupSuggestions } from '../../../shared/suggestions';
 import type { Command, HostStatus } from './types';
 
@@ -12,7 +14,9 @@ const ACCEPT_MODES: [AcceptMode, string][] = [
 
 export function SuggestionList({ status, send }: { status: HostStatus; send: (msg: Command) => void }) {
   const { state, undo } = status;
-  const { puzzle } = state;
+  // A sudoku's suggestions are per square, as one-square "clues".
+  const puzzle = isSudoku(state.puzzle) ? asPuzzle(state.puzzle) : state.puzzle;
+  const label = (clueId: string) => (isSudoku(state.puzzle) ? squareLabel(state.puzzle, Number(clueId.slice(1))) : clueId);
   const names = (ids: string[]) => ids.map(id => state.players.find(p => p.id === id)?.name ?? 'Someone').join(' + ');
   return (
     <>
@@ -43,7 +47,7 @@ export function SuggestionList({ status, send }: { status: HostStatus; send: (ms
                 {players.map(p => (
                   <span class="dot" style={{ background: p?.color }} />
                 ))}{' '}
-                {names(g.playerIds)} · <b>{g.clueId}</b>
+                {names(g.playerIds)} · <b>{label(g.clueId)}</b>
                 {agreed && <span class="agree-count">{players.length} agree</span>}
               </div>
               <div class="clue">{clue?.text}</div>

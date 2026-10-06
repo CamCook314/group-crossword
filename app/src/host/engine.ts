@@ -7,8 +7,9 @@ import type { FromApp, PageSnapshot } from '../../../shared/connector';
 import type { BracketMessage } from '../../../shared/games/bracket';
 import type { ClueRaceMessage } from '../../../shared/games/clues';
 import type { TriviaMessage } from '../../../shared/games/trivia';
-import { normalizeLetter, type AcceptMode, type GuestMessage, type HostMessage, type Player, type RoomState, type Suggestion } from '../../../shared/protocol';
-import { puzzleKey } from '../../../shared/puzzle';
+import { normalizeSymbol, type AcceptMode, type GuestMessage, type HostMessage, type PencilMarks, type Player, type RoomState, type Suggestion } from '../../../shared/protocol';
+import { isSudoku, puzzleKey, type Puzzle } from '../../../shared/puzzle';
+import { asPuzzle } from '../../../shared/sudoku/view';
 import { isSolved, squareStatus } from '../../../shared/race';
 import type { ReplayEvent } from '../../../shared/replay';
 import { AGREED_BY, cellsToApply, groupSuggestions, pruneSuggestions, sameLetters, upsertSuggestion } from '../../../shared/suggestions';
@@ -48,6 +49,7 @@ export interface SavedEngine {
   clues: unknown;
   trivia: unknown;
   bracket: SavedBracket;
+  marks: [string, PencilMarks][];
 }
 
 export class HostEngine {
@@ -87,6 +89,8 @@ export class HostEngine {
   private readonly clues: ClueRaceHost;
   private readonly trivia: TriviaHost;
   private readonly bracket = new BracketHost();
+  /** Sudoku: the pencil marks players share, by player id. */
+  private marks = new Map<string, PencilMarks>();
   /** A word for the host only, from one of those games, shown for a moment. */
   private hostNote: HostScreens['note'] = null;
 
@@ -127,6 +131,7 @@ export class HostEngine {
       clues: this.clues.save(),
       trivia: this.trivia.save(),
       bracket: this.bracket.save(),
+      marks: [...this.marks],
     };
   }
 
@@ -149,8 +154,14 @@ export class HostEngine {
     this.clues.restore(saved.clues);
     this.trivia.restore(saved.trivia);
     if (saved.bracket) this.bracket.restore(saved.bracket);
+    this.marks = new Map(saved.marks ?? []);
   }
 
+  /** The puzzle as crossword-shaped clues for the suggestion rules: a sudoku's squares are one-square "clues". */
+  private shape = (): Puzzle | null => {
+    const p = this.page?.puzzle;
+    return !p ? null : isSudoku(p) ? asPuzzle(p) : p;
+  };
   private samePuzzle = (p: PageSnapshot) => Boolean(this.page) && puzzleKey(p.puzzle) === puzzleKey(this.page!.puzzle);
   private solutions = () => (this.page && this.answers.get(puzzleKey(this.page.puzzle))) ?? null;
   /** The open page showing the puzzle being played, if any. */
@@ -205,6 +216,7 @@ export class HostEngine {
       check: this.check,
       finished: this.finished(),
       race: null,
+      ...(isSudoku(this.page?.puzzle) && { marks: Object.fromEntries(this.marks) }),
     };
   }
 
@@ -273,7 +285,7 @@ export class HostEngine {
   /** Pushes the current state everywhere. Called after every change. */
   update() {
     this.autoAccept();
-    this.suggestions = pruneSuggestions(this.suggestions, this.page?.puzzle ?? null, this.grid);
+    this.suggestions = pruneSuggestions(this.suggestions, this.shape(), this.grid);
     this.io.toGuests({ t: 'state', state: this.roomState() });
     // Racers who have finished know every answer, so they can watch everyone else's grid.
     if (this.race.running) {
@@ -294,8 +306,11 @@ export class HostEngine {
   /** Puts letters into the shared grid ('' clears), crediting them to `by` in the replay. */
   private setLetters(cells: { cell: number; letter: string }[], by: string) {
     if (!this.page) return;
-    const blocks = this.page.puzzle.blocks;
-    const changed = cells.filter(({ cell, letter }) => cell >= 0 && cell < blocks.length && !blocks[cell] && this.grid[cell] !== letter);
+    const { puzzle } = this.page;
+    const { blocks } = puzzle;
+    // A sudoku's givens never change.
+    const given = (cell: number) => isSudoku(puzzle) && Boolean(puzzle.givens[cell]);
+    const changed = cells.filter(({ cell, letter }) => cell >= 0 && cell < blocks.length && !blocks[cell] && !given(cell) && this.grid[cell] !== letter);
     if (!changed.length) return;
     // A new grid rather than changing it in place: the host's screens, in this same page, compare it to the last one.
     this.grid = [...this.grid];
@@ -312,7 +327,9 @@ export class HostEngine {
   /** Starts playing a puzzle: the grid as the site shows it, and nothing left over from the last one. */
   private usePuzzle(snapshot: PageSnapshot) {
     this.page = snapshot;
-    this.grid = snapshot.puzzle.blocks.map(() => '');
+    const { puzzle } = snapshot;
+    this.grid = isSudoku(puzzle) ? [...puzzle.givens] : puzzle.blocks.map(() => '');
+    this.marks = new Map();
     this.fromSite = true;
     this.suggestions = [];
     this.lastAccept = null;
@@ -384,6 +401,7 @@ export class HostEngine {
     if (this.mode === 'coop') {
       if (msg.t === 'select') player.clueId = msg.clueId;
       if (msg.t === 'suggest') this.suggestions = upsertSuggestion(this.suggestions, { playerId: player.id, clueId: msg.clueId, letters: msg.letters });
+      if (msg.t === 'marks') this.shareMarks(player.id, msg.marks);
     }
     if (this.mode === 'race' && msg.t === 'race-letters') {
       const now = Date.now();
@@ -392,6 +410,12 @@ export class HostEngine {
       if (this.race.allFinished(this.onlineIds())) this.race.end(now);
     }
     this.update();
+  }
+
+  /** Sudoku: shows a player's pencil marks to everyone, or stops (null). */
+  private shareMarks(playerId: string, marks: PencilMarks | null) {
+    if (marks) this.marks.set(playerId, marks);
+    else this.marks.delete(playerId);
   }
 
   /** Runs a game's move if that game is being played. */
@@ -417,7 +441,7 @@ export class HostEngine {
   private acceptGroup(clueId: string, letters: string[]): boolean {
     const group = this.suggestions.filter(x => x.clueId === clueId && sameLetters(x.letters, letters));
     if (!group.length || !this.page) return false;
-    const changes = cellsToApply(this.page.puzzle, group[0])
+    const changes = cellsToApply(this.shape()!, group[0])
       .map(({ cell, letter }) => ({ cell, before: this.grid[cell], after: letter }))
       .filter(c => c.before !== c.after);
     this.lastAccept = changes.length ? { playerIds: group.map(x => x.playerId), clueId, changes } : null;
@@ -486,16 +510,19 @@ export class HostEngine {
         if (this.mode !== 'coop') return;
         this.fromSite = false;
         this.setLetters(
-          msg.cells.map(c => ({ cell: c.cell, letter: normalizeLetter(c.letter) })),
+          msg.cells.map(c => ({ cell: c.cell, letter: normalizeSymbol(c.letter) })),
           HOST_ID,
         );
         return this.update();
       case 'select':
         this.hostClueId = msg.clueId;
         return this.update();
+      case 'marks':
+        this.shareMarks(HOST_ID, msg.marks);
+        return this.update();
       case 'suggest':
-        if (this.mode !== 'coop' || !this.page?.puzzle.clues.some(c => c.id === msg.clueId)) return;
-        this.suggestions = upsertSuggestion(this.suggestions, { playerId: HOST_ID, clueId: msg.clueId, letters: msg.letters.map(normalizeLetter) });
+        if (this.mode !== 'coop' || !this.shape()?.clues.some(c => c.id === msg.clueId)) return;
+        this.suggestions = upsertSuggestion(this.suggestions, { playerId: HOST_ID, clueId: msg.clueId, letters: msg.letters.map(normalizeSymbol) });
         return this.update();
       case 'check': {
         const s = this.solutions();
@@ -521,10 +548,11 @@ export class HostEngine {
         return this.update();
       }
       case 'start-race': {
-        // A race uses the puzzle being played, and needs its answers and someone to race.
+        // A race uses the puzzle being played (crosswords only, so far), and needs its answers and someone to race.
         const s = this.solutions();
-        if (this.mode !== 'race' || this.race.running || !this.session || !this.page || !s || !this.onlineIds().length) return;
-        this.race.start(this.page.puzzle, s, this.onlineIds(), now);
+        const puzzle = this.page?.puzzle;
+        if (this.mode !== 'race' || this.race.running || !this.session || !puzzle || isSudoku(puzzle) || !s || !this.onlineIds().length) return;
+        this.race.start(puzzle, s, this.onlineIds(), now);
         return this.update();
       }
       case 'end-race':
@@ -546,4 +574,4 @@ export class HostEngine {
   }
 }
 
-const summary = (p: PageSnapshot | null): PagePuzzle => p && { title: p.puzzle.title, rows: p.puzzle.rows, cols: p.puzzle.cols };
+const summary = (p: PageSnapshot | null): PagePuzzle => p && { title: p.puzzle.title, rows: p.puzzle.rows, cols: p.puzzle.cols, sudoku: isSudoku(p.puzzle) };

@@ -3,6 +3,7 @@ import { parseBracketMessage, type BracketMessage, type BracketState } from './g
 import { parseClueRaceMessage, type ClueRaceMessage, type ClueRaceState } from './games/clues';
 import { parseTriviaMessage, type TriviaMessage, type TriviaState } from './games/trivia';
 import type { Puzzle } from './puzzle';
+import type { Sudoku } from './sudoku/model';
 import type { RaceSettings, Standing } from './race';
 import type { ReplayEvent } from './replay';
 
@@ -37,8 +38,8 @@ export type Mode = 'coop' | 'race' | 'clues' | 'trivia' | 'bracket';
 export interface RoomState {
   mode: Mode;
   acceptMode: AcceptMode;
-  /** In a race, only sent once the countdown starts. */
-  puzzle: Puzzle | null;
+  /** A crossword or a sudoku. In a race, only sent once the countdown starts. */
+  puzzle: Puzzle | Sudoku | null;
   /** Co-op: the shared grid, one letter per cell ('' = empty). */
   letters: string[];
   players: Player[];
@@ -131,13 +132,25 @@ export type GuestMessage =
   /** A racer's whole grid, whenever it changes. */
   | { t: 'race-letters'; letters: string[] }
   | { t: 'get-replay' }
+  /** Sudoku: your pencil marks, to share them (and again whenever they change), or null to stop sharing. */
+  | { t: 'marks'; marks: PencilMarks | null }
   | ClueRaceMessage
   | TriviaMessage
   | BracketMessage;
 
 export const normalizeLetter = (s: unknown) => (typeof s === 'string' && /^[a-z]$/i.test(s) ? s.toUpperCase() : '');
+/** What can go in a square: a crossword's letter or a sudoku's digit. */
+export const normalizeSymbol = (s: unknown) => (typeof s === 'string' && /^[a-z0-9]$/i.test(s) ? s.toUpperCase() : '');
 
-const isClueId = (s: unknown): s is string => typeof s === 'string' && /^\d{1,3}[AD]$/.test(s);
+/** A crossword clue ("12A"), or a sudoku square ("s40"). */
+const isClueId = (s: unknown): s is string => typeof s === 'string' && /^(\d{1,3}[AD]|s\d{1,3})$/.test(s);
+
+/** Pencil marks: for up to 1000 squares, a few symbols each. */
+function isPencilMarks(m: unknown): m is PencilMarks {
+  const valid = (r: unknown) =>
+    typeof r === 'object' && r !== null && Object.keys(r).length <= 1000 && Object.entries(r).every(([k, v]) => /^\d{1,3}$/.test(k) && typeof v === 'string' && /^[A-Z0-9]{0,16}$/i.test(v));
+  return typeof m === 'object' && m !== null && valid((m as PencilMarks).corner) && valid((m as PencilMarks).centre);
+}
 
 /** Validates a message arriving from a guest; returns null if it's malformed. */
 export function parseGuestMessage(data: unknown): GuestMessage | null {
@@ -152,12 +165,14 @@ export function parseGuestMessage(data: unknown): GuestMessage | null {
       return m.clueId === null || isClueId(m.clueId) ? { t: 'select', clueId: m.clueId } : null;
     case 'suggest':
       if (!isClueId(m.clueId) || !Array.isArray(m.letters) || m.letters.length > 30) return null;
-      return { t: 'suggest', clueId: m.clueId, letters: m.letters.map(normalizeLetter) };
+      return { t: 'suggest', clueId: m.clueId, letters: m.letters.map(normalizeSymbol) };
     case 'race-letters':
       if (!Array.isArray(m.letters) || m.letters.length > 1000) return null;
-      return { t: 'race-letters', letters: m.letters.map(normalizeLetter) };
+      return { t: 'race-letters', letters: m.letters.map(normalizeSymbol) };
     case 'get-replay':
       return { t: 'get-replay' };
+    case 'marks':
+      return m.marks === null ? { t: 'marks', marks: null } : isPencilMarks(m.marks) ? { t: 'marks', marks: m.marks } : null;
     default:
       return parseClueRaceMessage(m) ?? parseTriviaMessage(m) ?? parseBracketMessage(m);
   }

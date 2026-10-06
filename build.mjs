@@ -23,6 +23,7 @@ if (want('app')) {
   mkdirSync('app/dist', { recursive: true });
   for (const f of ['index.html', 'style.css', 'games.css', 'trivia.css', 'clues.css', 'panel.css', 'host.css']) cpSync(`app/${f}`, `app/dist/${f}`);
   for (const f of ['grid.css', 'anagram.css', 'replay.css']) cpSync(`shared/${f}`, `app/dist/${f}`);
+  cpSync('shared/sudoku/sudoku.css', 'app/dist/sudoku.css');
   const options = { ...common, entryPoints: ['app/src/main.tsx'], outfile: 'app/dist/main.js', target: 'es2020' };
   if (serve) {
     const ctx = await esbuild.context(options);

@@ -1,4 +1,5 @@
 import { continuationOf, parseEnumeration, referencesIn, type Break } from './clues';
+import { sudokuKey, type Sudoku } from './sudoku/model';
 
 export type Dir = 'A' | 'D';
 
@@ -14,6 +15,8 @@ export interface Clue {
 
 /** A puzzle's structure as read off the site. Never contains the solution. */
 export interface Puzzle {
+  /** Crosswords may leave it out (older hosts do). */
+  kind?: 'crossword';
   title: string;
   rows: number;
   cols: number;
@@ -129,7 +132,12 @@ export function wordBreaks(puzzle: Puzzle): Map<number, CellBreaks> {
 }
 
 /** Identifies a puzzle by its grid and clues (not its title, which sites may change mid-solve). */
-export const puzzleKey = (p: Puzzle) => JSON.stringify([p.rows, p.cols, p.blocks, p.clues]);
+/** A crossword or a sudoku: both have rows, columns and squares (crosswords also have black ones). */
+export type AnyPuzzle = Puzzle | Sudoku;
+
+export const isSudoku = (p: AnyPuzzle | null | undefined): p is Sudoku => p?.kind === 'sudoku';
+
+export const puzzleKey = (p: AnyPuzzle) => (isSudoku(p) ? sudokuKey(p) : JSON.stringify([p.rows, p.cols, p.blocks, p.clues]));
 
 /** The clue running through a cell in a direction. */
 export const clueAt = (puzzle: Puzzle, cell: number, dir: Dir) =>

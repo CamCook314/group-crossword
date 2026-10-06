@@ -1,1 +1,70 @@
 /* The cryptic clue race */
+.clue-race-form {
+  display: grid;
+  gap: 8px;
+  max-width: 420px;
+}
+.clue-race-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+}
+.clue-race-error {
+  margin: 0;
+  color: #d62728;
+}
+.clue-race-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.clue-race-clock {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.clue-race-clue {
+  margin: 8px 0 14px;
+  font-size: 24px;
+  line-height: 1.35;
+}
+.clue-race-clue .definition {
+  text-decoration-color: var(--accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.clue-race-clue .enumeration {
+  color: var(--muted);
+}
+.clue-race-guess {
+  display: flex;
+  gap: 8px;
+  max-width: 480px;
+}
+.clue-race-guess input {
+  flex: 1;
+  min-width: 0;
+  font-size: 18px;
+  text-transform: uppercase;
+}
+.clue-race-solved {
+  margin: 0;
+  color: #2ca02c;
+  font-weight: 600;
+}
+.clue-race-answer h2 {
+  margin: 0 0 4px;
+  letter-spacing: 0.06em;
+}
+.clue-race-answer p {
+  margin: 0 0 4px;
+}
+.clue-race-controls {
+  display: flex;
+  gap: 8px;
+}
+.clue-race .points {
+  margin-left: 10px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

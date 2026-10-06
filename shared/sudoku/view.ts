@@ -39,7 +39,7 @@ export function step(s: Sudoku, cell: number, dr: number, dc: number): number {
 /** The selection with `cell` added as its main square, which is always the last. */
 export const withMain = (selected: number[], cell: number) => [...selected.filter(c => c !== cell), cell];
 
-/** A record by square, without the given squares. */
+/** A record by square, leaving out the squares in `cells`. */
 export const without = <T>(record: Record<number, T>, cells: number[]): Record<number, T> =>
   Object.fromEntries(Object.entries(record).filter(([cell]) => !cells.includes(+cell)));
 

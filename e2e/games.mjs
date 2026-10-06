@@ -71,6 +71,57 @@ try {
   await (await button(host, 'Play again')).click();
   await until('back to choosing a category', () => host.findElement(By.css('.bracket-form input')));
 
+  // A number box: cleared and set.
+  const setNumber = async (driver, css, value) => {
+    const box = await driver.findElement(By.css(css));
+    await box.clear();
+    await box.sendKeys(String(value));
+  };
+
+  // --- Trivia, from Open Trivia DB ---
+  await (await button(host, 'Trivia')).click();
+  await until('trivia setup', () => host.findElement(By.css('.trivia-form')));
+  await setNumber(host, '.trivia-form label:nth-of-type(3) input', 5);
+  await setNumber(host, '.trivia-form label:nth-of-type(4) input', 20);
+  await (await button(host, 'Start')).click();
+  for (let q = 1; q <= 5; q++) {
+    await until(`question ${q} for everyone`, () => all(async d => (await text(d, '.trivia-head .hint')).startsWith(`Question ${q} of 5`)), 30000);
+    if (q === 1) await shot(sam, 'games-trivia-question');
+    // Everyone answers; the answer shows once all three have.
+    for (const d of everyone) await (await until('an answer to pick', async () => (await d.findElements(By.css('.trivia-answer')))[0])).click();
+    await until('the answer revealed for everyone', () => all(async d => (await d.findElements(By.css('.trivia-picks li'))).length === 3));
+    await (await button(host, q < 5 ? 'Next question' : 'See the scores')).click();
+  }
+  const triviaScores = await until('final scores for everyone', () => all(async d => (await d.findElements(By.css('.trivia .standings li'))).length === 3) && text(sam, '.trivia .standings'));
+  step(`trivia: 5 questions from Open Trivia DB, everyone answered each, then the scores (${triviaScores.replace(/\n/g, ', ')})`);
+
+  // --- The cryptic clue race, from cryptics.georgeho.org ---
+  await (await button(host, 'Clue race')).click();
+  await until('clue race setup', () => host.findElement(By.css('.clue-race-form')));
+  await setNumber(host, '.clue-race-form label:nth-of-type(1) input', 5);
+  await setNumber(host, '.clue-race-form label:nth-of-type(2) input', 60);
+  await (await button(host, 'Start')).click();
+  const clue = await until('the first clue for everyone', async () => (await all(async d => (await d.findElements(By.css('.clue-race-clue'))).length)) && text(sam, '.clue-race-clue'), 30000);
+  await shot(sam, 'games-clue');
+  // A wrong guess: only Sam is told, and nobody sees the answer yet.
+  await (await until('guess box', () => sam.findElement(By.css('.clue-race-guess input')))).sendKeys('qqqqq');
+  await (await button(sam, 'Guess')).click();
+  await until('Sam told it was wrong', async () => (await text(sam, '.toast')) === 'Not it');
+  if ((await ana.findElements(By.css('.clue-race-answer'))).length) throw new Error('the answer showed before the reveal');
+  await (await button(host, 'Reveal now')).click();
+  const answer = await until('everyone sees the same answer', async () => {
+    const answers = await Promise.all(everyone.map(d => text(d, '.clue-race-answer h2').catch(() => '')));
+    return answers[0] && answers.every(a => a === answers[0]) && answers[0];
+  });
+  // The host moves on, skipping the rest unrevealed: clue 2, 3, 4, 5, then the scores.
+  for (const label of ['Next clue', 'Skip', 'Skip', 'Skip', 'See the scores']) {
+    const index = await text(host, '.clue-race-head .hint');
+    await (await button(host, label)).click();
+    await until(`past ${index}`, async () => (await host.findElements(By.css('.clue-race .standings'))).length || (await text(host, '.clue-race-head .hint')) !== index);
+  }
+  await until('the clue race over for everyone', () => all(async d => (await d.findElements(By.css('.clue-race .standings li'))).length === 3));
+  step(`clue race: "${clue}" — a wrong guess told only Sam "Not it"; revealed as ${answer} for everyone; then the scores`);
+
   console.log('\nAll game checks passed.');
 } catch (e) {
   console.error('\nFAILED:', e.message);

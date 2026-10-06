@@ -1,8 +1,9 @@
-// Amuse Labs' PuzzleMe player, which Courier Mail embeds in an iframe.
+// Amuse Labs' PuzzleMe player, which Courier Mail embeds in an iframe, for crosswords and sudokus alike.
 import { puzzleMeSolutions } from '../../../shared/answers';
 import { spaceBeforeEnumeration } from '../../../shared/clues';
 import { buildPuzzle, type Dir } from '../../../shared/puzzle';
 import { decodeRawc } from '../../../shared/rawc';
+import { puzzleMeSudoku } from '../../../shared/sudoku/puzzleme';
 import { runAdapter, type SiteAdapter } from './run';
 
 function grid() {
@@ -41,12 +42,38 @@ const clueItems = () =>
 
 const mouse = (el: Element, type: string) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true }));
 
+/**
+ * The whole puzzle, answers included, embedded scrambled as "rawc": usually a page variable (which Firefox content
+ * scripts reach through wrappedJSObject), sometimes inside a JSON script tag.
+ */
+function rawc(): string | null {
+  const page = (window as unknown as { wrappedJSObject?: { puzzleEnv?: { rawc?: unknown }; rawc?: unknown } }).wrappedJSObject;
+  const params = document.getElementById('params')?.textContent;
+  const found = page?.puzzleEnv?.rawc ?? page?.rawc ?? (params ? JSON.parse(params).rawc : undefined);
+  return typeof found === 'string' ? found : null;
+}
+
+const isSudokuPage = () => Boolean(document.querySelector('.puzzle-type-sudoku'));
+
+/** A sudoku page's puzzle and solution, from its data: unscrambled once, since that can take a moment. */
+let sudokuCache: { rawc: string; parsed: ReturnType<typeof puzzleMeSudoku> } | null = null;
+function sudoku() {
+  const data = rawc();
+  if (!data) return null;
+  if (sudokuCache?.rawc !== data) sudokuCache = { rawc: data, parsed: puzzleMeSudoku(decodeRawc(data)) };
+  return sudokuCache.parsed;
+}
+
 const adapter: SiteAdapter = {
   read() {
     const g = grid();
     if (!g) return null;
-    const blocks = g.cells.map(el => el.classList.contains('empty'));
     const letters = g.cells.map(el => el.querySelector('.letter-in-box')?.textContent?.trim().toUpperCase() ?? '');
+    if (isSudokuPage()) {
+      const s = sudoku();
+      return s && { puzzle: s.sudoku, letters, clueId: null };
+    }
+    const blocks = g.cells.map(el => el.classList.contains('empty'));
     const clues = clueItems()
       .filter(c => c.num > 0)
       .map(({ div, num, dir }) => ({ num, dir, text: spaceBeforeEnumeration(div.querySelector('.clue')?.textContent?.trim() ?? '') }));
@@ -62,7 +89,10 @@ const adapter: SiteAdapter = {
     mouse(box, 'mouseup');
     const input = document.querySelector<HTMLInputElement>('input.dummy');
     if (!input) return;
-    if (letter) {
+    if (letter && isSudokuPage()) {
+      // A sudoku takes its digits as keydowns; the input event does nothing there.
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: letter, code: `Digit${letter}`, keyCode: letter.charCodeAt(0), which: letter.charCodeAt(0), bubbles: true, cancelable: true }));
+    } else if (letter) {
       input.value = letter;
       input.dispatchEvent(new InputEvent('input', { data: letter, inputType: 'insertText', bubbles: true }));
     } else {
@@ -72,12 +102,12 @@ const adapter: SiteAdapter = {
   },
 
   async readAnswers() {
-    // The whole puzzle, answers included, is embedded scrambled as "rawc": usually a page variable (which Firefox
-    // content scripts reach through wrappedJSObject), sometimes inside a JSON script tag.
-    const page = (window as unknown as { wrappedJSObject?: { puzzleEnv?: { rawc?: unknown }; rawc?: unknown } }).wrappedJSObject;
-    const params = document.getElementById('params')?.textContent;
-    const rawc = page?.puzzleEnv?.rawc ?? page?.rawc ?? (params ? JSON.parse(params).rawc : undefined);
-    return typeof rawc === 'string' ? puzzleMeSolutions(decodeRawc(rawc)) : null;
+    if (isSudokuPage()) {
+      const s = sudoku();
+      return s && [s.solution];
+    }
+    const data = rawc();
+    return data ? puzzleMeSolutions(decodeRawc(data)) : null;
   },
 };
 

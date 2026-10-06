@@ -2,7 +2,7 @@
 import type { BracketCommand } from '../../../shared/games/bracket';
 import type { ClueRaceCommand } from '../../../shared/games/clues';
 import type { TriviaCommand } from '../../../shared/games/trivia';
-import type { AcceptMode, GuestMessage, Mode, Player, RacePhase, RaceResults, RoomState } from '../../../shared/protocol';
+import type { AcceptMode, GuestMessage, Mode, PencilMarks, Player, RacePhase, RaceResults, RoomState } from '../../../shared/protocol';
 import type { Puzzle } from '../../../shared/puzzle';
 import type { RaceSettings } from '../../../shared/race';
 import type { ReplayEvent } from '../../../shared/replay';
@@ -15,8 +15,8 @@ export interface HostProfile {
 
 export type { Mode };
 
-/** A crossword open on a site. */
-export type PagePuzzle = { title: string; rows: number; cols: number } | null;
+/** A puzzle open on a site. */
+export type PagePuzzle = { title: string; rows: number; cols: number; sudoku: boolean } | null;
 
 export type Session = { link: string; status: string } | null;
 
@@ -89,6 +89,8 @@ export type Command =
   | { type: 'type'; cells: { cell: number; letter: string }[] }
   /** The clue the host has selected. */
   | { type: 'select'; clueId: string | null }
+  /** Sudoku: the host's pencil marks, to share them, or null to stop sharing. */
+  | { type: 'marks'; marks: PencilMarks | null }
   /** The host suggesting rather than writing in, like a guest (all blank withdraws it). */
   | { type: 'suggest'; clueId: string; letters: string[] }
   /** Check these squares against the answers; `label` says what was checked ("1A", "the grid"). */

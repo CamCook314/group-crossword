@@ -2,6 +2,7 @@ import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { ColorPicker } from '../../shared/ColorPicker';
 import type { CoopReplay } from '../../shared/CoopSolver';
+import { isSudoku } from '../../shared/puzzle';
 import { COLORS, type GuestMessage, type Player, type RacerBoard, type RoomState } from '../../shared/protocol';
 import { Board } from './Board';
 import { GameScreen, isGameMode } from './games/GameScreen';
@@ -67,7 +68,7 @@ function App() {
           // Extensions before 0.5.0 send puzzles without linked answers or cross-references, and before 0.6.0 no checks.
           const { puzzle } = msg.state;
           const state = { ...msg.state, wrong: msg.state.wrong ?? [], check: msg.state.check ?? null, finished: msg.state.finished ?? null };
-          setState(puzzle && !puzzle.links ? { ...state, puzzle: { ...puzzle, links: [], refs: {} } } : state);
+          setState(puzzle && !isSudoku(puzzle) && !puzzle.links ? { ...state, puzzle: { ...puzzle, links: [], refs: {} } } : state);
           if (msg.state.race?.phase !== 'racing') setBoards(null);
           // A new race starts clean.
           if (msg.state.race?.phase === 'countdown') {

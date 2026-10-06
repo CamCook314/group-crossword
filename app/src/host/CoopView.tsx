@@ -1,6 +1,9 @@
 // The host's co-op screen: the shared solving view (where the host writes straight into the grid, or
 // suggests like everyone else), with Check and Fill in, beside the suggestion queue and the players.
 import { CoopSolver } from '../../../shared/CoopSolver';
+import { isSudoku, puzzleKey } from '../../../shared/puzzle';
+import { SudokuSolver } from '../../../shared/sudoku/SudokuSolver';
+import { squareId } from '../../../shared/sudoku/view';
 import type { Command, HostScreens, HostStatus } from './types';
 import { SuggestionList } from './SuggestionList';
 
@@ -15,10 +18,45 @@ export function CoopView({ status, replay, send }: Props) {
   const { puzzle } = state;
   const canCheck = typeof status.answers === 'number';
   const check = (cells: number[], label: string) => send({ type: 'check', cells, label });
+  const allSquares = puzzle ? puzzle.blocks.flatMap((block, cell) => (block ? [] : [cell])) : [];
+  const checkTitle = canCheck ? 'Checks against the answers; wrong squares are marked for everyone' : 'This puzzle’s answers weren’t found';
+  const finishedExtra =
+    status.fillIn === 'ready' ? (
+      <button onClick={() => send({ type: 'fill-site' })}>Fill in the {isSudoku(puzzle) ? 'sudoku' : 'crossword'}</button>
+    ) : status.fillIn === 'no-tab' ? (
+      <span class="hint">Open the puzzle’s page to fill it in.</span>
+    ) : status.fillIn === 'done' ? (
+      <span>Filled in on the site ✓</span>
+    ) : null;
 
   return (
     <div class="coop">
-      {puzzle ? (
+      {puzzle && isSudoku(puzzle) ? (
+        <SudokuSolver
+          key={puzzleKey(puzzle)}
+          sudoku={puzzle}
+          state={state}
+          me="host"
+          suggest={(cell, digit) => send({ type: 'suggest', clueId: squareId(cell), letters: [digit] })}
+          select={cell => send({ type: 'select', clueId: cell === null ? null : squareId(cell) })}
+          shareMarks={marks => send({ type: 'marks', marks })}
+          write={cells => send({ type: 'type', cells })}
+          actions={selected => (
+            <span class="check" title={checkTitle}>
+              <span class="hint">Check</span>
+              <button class="secondary" disabled={!canCheck || !selected.length} onClick={() => check(selected, selected.length === 1 ? 'a square' : 'the squares')}>
+                Selected
+              </button>
+              <button class="secondary" disabled={!canCheck} onClick={() => check(allSquares, 'the grid')}>
+                Grid
+              </button>
+            </span>
+          )}
+          finishedExtra={finishedExtra}
+          replay={replay}
+          requestReplay={() => {}}
+        />
+      ) : puzzle ? (
         <CoopSolver
           puzzle={puzzle}
           state={state}
@@ -27,7 +65,7 @@ export function CoopView({ status, replay, send }: Props) {
           select={clueId => send({ type: 'select', clueId })}
           write={cells => send({ type: 'type', cells })}
           actions={at => (
-            <span class="check" title={canCheck ? 'Checks against the answers; wrong squares are marked for everyone' : 'This puzzle’s answers weren’t found'}>
+            <span class="check" title={checkTitle}>
               <span class="hint">Check</span>
               <button class="secondary" disabled={!canCheck} onClick={() => check([at.cell], 'a square')}>
                 Square
@@ -35,25 +73,17 @@ export function CoopView({ status, replay, send }: Props) {
               <button class="secondary" disabled={!canCheck} onClick={() => check(at.answerCells, at.label)}>
                 Answer
               </button>
-              <button class="secondary" disabled={!canCheck} onClick={() => check(puzzle.blocks.flatMap((block, cell) => (block ? [] : [cell])), 'the grid')}>
+              <button class="secondary" disabled={!canCheck} onClick={() => check(allSquares, 'the grid')}>
                 Grid
               </button>
             </span>
           )}
-          finishedExtra={
-            status.fillIn === 'ready' ? (
-              <button onClick={() => send({ type: 'fill-site' })}>Fill in the crossword</button>
-            ) : status.fillIn === 'no-tab' ? (
-              <span class="hint">Open the crossword’s page to fill it in.</span>
-            ) : status.fillIn === 'done' ? (
-              <span>Filled in on the site ✓</span>
-            ) : null
-          }
+          finishedExtra={finishedExtra}
           replay={replay}
           requestReplay={() => {}}
         />
       ) : (
-        <p class="hint center">Open a crossword on Crosshare or Courier Mail.</p>
+        <p class="hint center">Open a crossword or sudoku on Crosshare or Courier Mail.</p>
       )}
 
       <aside>

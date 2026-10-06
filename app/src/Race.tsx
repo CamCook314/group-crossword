@@ -4,7 +4,7 @@ import { AnagramPad } from '../../shared/AnagramPad';
 import { answerLabel, BoardArea, ClueLists, cursorClass, Grid, MiniBoard, useCursor } from '../../shared/Crossword';
 import { Define } from '../../shared/Define';
 import type { GuestMessage, Player, RaceState, RacerBoard, RoomState } from '../../shared/protocol';
-import { puzzleKey, slotBreaks, wordBreaks, type Puzzle } from '../../shared/puzzle';
+import { isSudoku, puzzleKey, slotBreaks, wordBreaks, type Puzzle } from '../../shared/puzzle';
 import { formatTime, ordinal } from '../../shared/race';
 import { ReplayPlayer } from '../../shared/ReplayPlayer';
 import { Scratchpad } from '../../shared/Scratchpad';
@@ -34,7 +34,8 @@ const percent = (n: number, total: number) => (total ? Math.round((100 * n) / to
 export function Race(props: Props) {
   const { state } = props;
   const race = state.race!;
-  if (race.phase === 'lobby' || !state.puzzle) return <Lobby state={state} race={race} />;
+  // Races are crosswords only, so far.
+  if (race.phase === 'lobby' || !state.puzzle || isSudoku(state.puzzle)) return <Lobby state={state} race={race} />;
   if (race.phase === 'done') return <Results state={state} race={race} puzzle={state.puzzle} me={props.me} />;
   return <Racing key={puzzleKey(state.puzzle)} {...props} puzzle={state.puzzle} race={race} />;
 }

@@ -116,7 +116,8 @@ describe('race rules elsewhere', () => {
   });
 
   it("validates racers' grids", () => {
-    expect(parseGuestMessage({ t: 'race-letters', letters: ['a', '', '7'] })).toEqual({ t: 'race-letters', letters: ['A', '', ''] });
+    // Letters or digits (for sudokus); anything else is a blank.
+    expect(parseGuestMessage({ t: 'race-letters', letters: ['a', '', '7', '?'] })).toEqual({ t: 'race-letters', letters: ['A', '', '7', ''] });
     expect(parseGuestMessage({ t: 'race-letters', letters: 'CAT' })).toBeNull();
   });
 });

@@ -2,7 +2,7 @@
 // has open and fills them in. They pass through the connector's bridge script on the app's page (window.postMessage),
 // because Firefox doesn't let a web page message an extension directly.
 import type { Solutions } from './answers';
-import type { Puzzle } from './puzzle';
+import type { AnyPuzzle } from './puzzle';
 
 /** Raised when these messages change, so the app can tell the host to update the extension. */
 export const CONNECTOR_VERSION = 1;
@@ -13,7 +13,7 @@ export const TO_APP = 'group-crossword-connector';
 
 /** What a crossword page currently shows. Sent by the content script whenever it changes. */
 export interface PageSnapshot {
-  puzzle: Puzzle;
+  puzzle: AnyPuzzle;
   letters: string[];
   /** The clue the host has selected on the site. */
   clueId: string | null;

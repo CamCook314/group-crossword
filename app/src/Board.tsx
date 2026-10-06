@@ -1,6 +1,9 @@
 // A guest's co-op view: the shared solving view, with the players underneath.
 import { CoopSolver, type CoopReplay } from '../../shared/CoopSolver';
 import type { GuestMessage, RoomState } from '../../shared/protocol';
+import { isSudoku, puzzleKey } from '../../shared/puzzle';
+import { SudokuSolver } from '../../shared/sudoku/SudokuSolver';
+import { squareId } from '../../shared/sudoku/view';
 import { PlayerList } from './PlayerList';
 
 interface Props {
@@ -15,24 +18,42 @@ interface Props {
 }
 
 export function Board({ state, me, send, replay, requestReplay, editProfile }: Props) {
-  if (!state.puzzle) return <p class="center">Waiting for the host to open a crossword…</p>;
+  const { puzzle } = state;
+  if (!puzzle) return <p class="center">Waiting for the host to open a puzzle…</p>;
+  const footer = (
+    <div class="footer">
+      <PlayerList players={state.players} me={me} />
+      <button class="secondary" onClick={editProfile}>
+        Change your name or colour
+      </button>
+    </div>
+  );
+  if (isSudoku(puzzle)) {
+    return (
+      <SudokuSolver
+        key={puzzleKey(puzzle)}
+        sudoku={puzzle}
+        state={state}
+        me={me}
+        suggest={(cell, digit) => send({ t: 'suggest', clueId: squareId(cell), letters: [digit] })}
+        select={cell => send({ t: 'select', clueId: cell === null ? null : squareId(cell) })}
+        shareMarks={marks => send({ t: 'marks', marks })}
+        replay={replay}
+        requestReplay={requestReplay}
+        footer={footer}
+      />
+    );
+  }
   return (
     <CoopSolver
-      puzzle={state.puzzle}
+      puzzle={puzzle}
       state={state}
       me={me}
       suggest={(clueId, letters) => send({ t: 'suggest', clueId, letters })}
       select={clueId => send({ t: 'select', clueId })}
       replay={replay}
       requestReplay={requestReplay}
-      footer={
-        <div class="footer">
-          <PlayerList players={state.players} me={me} />
-          <button class="secondary" onClick={editProfile}>
-            Change your name or colour
-          </button>
-        </div>
-      }
+      footer={footer}
     />
   );
 }

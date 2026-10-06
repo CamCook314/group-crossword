@@ -134,12 +134,12 @@ Most code moves rather than being rewritten:
 | Step | What | Done when |
 |---|---|---|
 | 0. Prove it | An app tab hosts a room and keeps its room id across a reload | ✅ 2026-10-06, two Firefoxes: after a reload the host got the same PeerJS id back on the first try (0.7 s), and the guest, retrying every second, was back 1.7 s after its connection dropped. The bridge is a standard pattern, built in step 3. |
-| 1. Host engine | Move the background-page logic into a host module in the app | Unit tests pass, including today's race tests |
-| 2. Host mode | The full view's co-op and race screens in the app, plus a home screen (host or join) | The app can host co-op with no extension, on a puzzle given by the test |
-| 3. Connector | Background page becomes a relay; site adapters unchanged; the bridge | The host picks an open puzzle tab; fill-in works |
-| 4. Parity | Today's co-op and race end-to-end checks, rewritten for the new structure | `npm run e2e` passes on both sites |
-| 5. Ship | Sign the slimmer connector, update the docs, merge | A real session |
-| 6. Expansion | The game-kind layer, then sudoku (expansion.md), then the games without a site | As in expansion.md |
+| 1. Host engine | Move the background-page logic into a host module in the app | ✅ `app/src/host/engine.ts`, with its own unit tests and today's race tests |
+| 2. Host mode | The full view's co-op and race screens in the app, plus a home screen (host or join) | ✅ `#host`; the home screen offers Host a game or Join |
+| 3. Connector | Background page becomes a relay; site adapters unchanged; the bridge | ✅ `connector/`; the toolbar button opens the app to host |
+| 4. Parity | Today's co-op and race end-to-end checks, rewritten for the new structure | ✅ `npm run e2e` on both sites, plus a check that reloads the host's tab mid-game |
+| 5. Ship | Sign the slimmer connector, update the docs, merge | Docs updated; the connector (0.7.0) to be signed and installed by the host |
+| 6. Expansion | The game-kind layer, then sudoku (expansion.md), then the games without a site | ✅ Game modes (clue race, trivia, bracket) and co-op sudoku from PuzzleMe, each with an end-to-end test; see expansion.md |
 
 ## Long term: letting anyone host
 

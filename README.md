@@ -1,6 +1,6 @@
 # Group Crossword
 
-Solve crosswords on Crosshare or Courier Mail together. Everyone plays in Group Crossword, a web page: the host in a
+Solve crosswords and sudokus on Crosshare or Courier Mail together, or play a cryptic clue race, trivia or a bracket. Everyone plays in Group Crossword, a web page: the host in a
 tab that runs the game, friends from a link, suggesting answers that the host accepts or rejects. A small Firefox
 extension, the **connector**, reads the crossword from the site the host has open, and once it's solved, fills it in
 there with one click. See [PLAN.md](PLAN.md) for how it works, and [redesign.md](redesign.md) for why it's built this way.
@@ -51,6 +51,21 @@ Reloading the Group Crossword tab is fine: the game carries on with the same lin
 themselves. Closing it ends the session (it asks first). Opening another crossword in another tab doesn't disturb the
 session: the host's screen offers **Play it instead**.
 
+### Sudokus
+
+Courier Mail's sudokus (PuzzleMe) work like crosswords: open one, and it shows in the host's tab. Select squares
+(drag, or Ctrl/Shift-click), type digits; **Corner** and **Centre** (or hold Shift / Ctrl) make pencil marks, which
+are yours alone until you press **Share my marks**. Clashes are marked red. Suggestions, Agree, Check and Fill in work
+as for crosswords. Races are crosswords only, so far.
+
+### Games without a puzzle
+
+**Clue race**, **Trivia** and **Bracket** (at the top of the host's tab) need no crossword and no extension: anyone can
+open https://camcook314.github.io/group-crossword/, press **Host a game**, and send the link. The host plays too.
+- **Clue race:** one cryptic clue at a time; first right answer scores most; the definition is underlined at half time.
+- **Trivia:** pick a category, difficulty and number of questions; everyone answers privately, then sees who was right.
+- **Bracket:** name a category; everyone puts forward an option; vote through the knockout until one is left.
+
 ### Racing
 
 1. In the host's tab, switch to **Race**.
@@ -92,7 +107,8 @@ shows once, in grey, top-right. Each player's initial sits next to the clue they
 | `npm run build` | Build the app (`app/dist`) and the connector (`connector/dist`) |
 | `npm run dev:app` | The app with rebuild-on-save at `http://localhost:8000/` (`#host` to host; the connector works on localhost too) |
 | `npm test` / `npm run typecheck` | Unit tests / type check |
-| `npm run e2e` | End-to-end checks in real Firefox against live Crosshare and a free PuzzleMe (Vox) puzzle: co-op, then a race. Needs internet. |
+| `npm run e2e` | End-to-end checks in real Firefox against live Crosshare and free PuzzleMe puzzles: co-op, a race, a sudoku, then the games. Needs internet. |
+| `npm run e2e:sudoku` / `npm run e2e:games` | A co-op sudoku (Amuse Labs' PuzzleMe demo); the games without a puzzle (hosted with no extension). |
 | `npm run e2e:coop` / `npm run e2e:race` | Just one of them. `HEADED=1` to watch, `SHOTS=1` to save screenshots, `-- crosshare` or `-- puzzleme` for one site. |
 | `npm run firefox` | Run Firefox with the connector temporarily installed |
 

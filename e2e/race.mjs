@@ -8,7 +8,7 @@
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the race view and racers' pages.
 import { writeFileSync } from 'node:fs';
 import { By, Key } from 'selenium-webdriver';
-import { appUrl, buildConnector, chosenSites, launch, readSite, SITES, startAppServer, step, switchToNewWindow, until } from './helpers.mjs';
+import { appUrl, buildConnector, chosenSites, launch, quit, readSite, SITES, startAppServer, step, switchToNewWindow, until } from './helpers.mjs';
 
 const PENALTY = 8; // seconds; short, so the test can check the cooldown
 
@@ -231,6 +231,6 @@ try {
   }
   console.error('Screenshots saved in e2e/.artifacts/');
 } finally {
-  await Promise.allSettled([host.quit(), sam.quit(), ana.quit()]);
+  await Promise.allSettled([host, sam, ana].map(quit));
   server.close();
 }

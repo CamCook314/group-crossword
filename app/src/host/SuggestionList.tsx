@@ -31,7 +31,7 @@ export function SuggestionList({ status, send }: { status: HostStatus; send: (ms
       </fieldset>
       {undo && (
         <button class="secondary undo" onClick={() => send({ type: 'undo' })}>
-          Undo accept: {names(undo.playerIds)} · {undo.clueId}
+          Undo accept: {names(undo.playerIds)} · {label(undo.clueId)}
         </button>
       )}
       {state.suggestions.length === 0 && <p class="hint">No suggestions waiting.</p>}

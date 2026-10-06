@@ -3,7 +3,7 @@
 import { CoopSolver } from '../../../shared/CoopSolver';
 import { isSudoku, puzzleKey } from '../../../shared/puzzle';
 import { SudokuSolver } from '../../../shared/sudoku/SudokuSolver';
-import { squareId } from '../../../shared/sudoku/view';
+import { squareId, squareLabel } from '../../../shared/sudoku/view';
 import type { Command, HostScreens, HostStatus } from './types';
 import { SuggestionList } from './SuggestionList';
 
@@ -120,7 +120,7 @@ export function CoopView({ status, replay, send }: Props) {
                 {p.name}
                 {p.host && ' (you)'}
                 {!p.online && ' (left)'}
-                {p.clueId && <span class="on-clue">{p.clueId}</span>}
+                {p.clueId && <span class="on-clue">{isSudoku(puzzle) ? squareLabel(puzzle, Number(p.clueId.slice(1))) : p.clueId}</span>}
               </li>
             ))}
           </ul>

@@ -6,7 +6,7 @@
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots.
 import { writeFileSync } from 'node:fs';
 import { By } from 'selenium-webdriver';
-import { appUrl, launch, startAppServer, step, until } from './helpers.mjs';
+import { appUrl, launch, quit, startAppServer, step, until } from './helpers.mjs';
 
 const server = startAppServer();
 const host = await launch(false);
@@ -134,6 +134,6 @@ try {
     writeFileSync(`e2e/.artifacts/failure-${name}.png`, await driver.takeScreenshot(), 'base64');
   console.error('Screenshots saved in e2e/.artifacts/');
 } finally {
-  await Promise.allSettled(everyone.map(d => d.quit()));
+  await Promise.allSettled(everyone.map(quit));
   server.close();
 }

@@ -390,7 +390,8 @@
 .write-mode {
   display: flex;
 }
-button.picked {
+button.picked,
+button.secondary.picked {
   background: color-mix(in srgb, var(--me) 30%, transparent);
 }
 

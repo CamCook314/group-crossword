@@ -97,6 +97,21 @@ export async function launch(withExtension) {
   return driver;
 }
 
+/**
+ * Quits a browser, leaving every page first: the host's tab asks before closing while a session is live, and that
+ * question, on a tab the test isn't looking at, would hold up quitting forever. (Navigating answers it.)
+ */
+export async function quit(driver) {
+  for (const handle of await driver.getAllWindowHandles().catch(() => [])) {
+    await driver
+      .switchTo()
+      .window(handle)
+      .then(() => driver.get('about:blank'))
+      .catch(() => {});
+  }
+  await driver.quit();
+}
+
 /** Polls until fn returns something truthy. */
 export async function until(what, fn, timeout = 20000) {
   const end = Date.now() + timeout;

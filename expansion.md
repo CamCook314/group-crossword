@@ -4,8 +4,9 @@ Group Crossword is built around crosswords. This plans what it takes to play oth
 first (Courier Mail's, which use PuzzleMe, and Cracking the Cryptic's, which use SudokuPad), then a menu of other
 puzzles and group games, researched for free and open-source sources.
 
-Status: **planning**; the host answered the open questions on 2026-10-06 (see [Decisions](#decisions)). Building
-starts with Courier Mail's sudokus.
+Status (2026-10-07): **co-op sudoku from PuzzleMe is built**, along with the three games the host picked (cryptic clue
+race, trivia, bracket), on top of the redesign ([redesign.md](redesign.md)). Still to do: SudokuPad (CTC and
+variants), sudoku races, and Courier Mail checked by the host. See [Progress](#progress).
 
 ## What we found
 
@@ -42,6 +43,29 @@ Logic Masters Deutschland and most of the variant-sudoku community.
   Tatham's Portable Puzzle Collection (MIT) generates about 40 puzzle types from a seed; Penpa+ is MIT too.
 - **Free data:** Lichess has 6 million chess puzzles (CC0); Open Trivia DB is CC BY-SA 4.0 with no API key; Puzzled
   Pint's team puzzle-hunt archive is CC BY-NC-SA 4.0; there's a dataset of over half a million cryptic clues.
+
+## Progress
+
+| Step (from Build steps below) | Status |
+|---|---|
+| 0. Prove it | ✅ PuzzleMe (findings below). SudokuPad still to do. |
+| 1. Model | ✅ `shared/sudoku/`: model, PuzzleMe parser, clashes, a solver; unit tests on made-up puzzles |
+| 2. The grid | ✅ Classic sudoku: selection, Digit / Corner / Centre, clashes, pencil marks shared on request. Variant shapes (SudokuPad) still to do. |
+| 3. Co-op, PuzzleMe | ✅ `e2e/sudoku.mjs` on Amuse Labs' demo: suggest, Agree, accept, clashes, shared marks, Check, Solved, Fill in |
+| 4. Co-op, SudokuPad | To do |
+| 5. Race | To do (races are crosswords only for now) |
+| 6. Ship | Docs updated; merging with the redesign |
+
+The games the host picked are built too, each a mode in the host's tab that needs no puzzle or extension, and checked
+end to end in `e2e/games.mjs`:
+- **Cryptic clue race:** clues fetched from cryptics.georgeho.org as the game runs (its API allows browser requests;
+  nothing is copied into the repo). Private guesses; 3, 2, then 1 points by order solved; the definition is underlined
+  at half time, after which a solve is worth a point less; the answer, definition and a link to the solving blog's
+  explanation at the reveal.
+- **Trivia:** questions from Open Trivia DB (CC BY-SA 4.0), by category and difficulty; everyone answers privately and
+  can change their answer until the reveal; a point for each right answer.
+- **Bracket:** the host names a category; everyone puts forward an option, anonymously; a knockout bracket voted a
+  match at a time (byes when the numbers are odd, a coin toss on a tie); who suggested what is shown at the end.
 
 ## Step 0 findings: PuzzleMe sudokus (2026-10-06)
 

@@ -7,7 +7,7 @@
 // Set HEADED=1 to watch it, or SHOTS=1 to save screenshots of the guests' and the host's screens.
 import { writeFileSync } from 'node:fs';
 import { By, Key } from 'selenium-webdriver';
-import { appUrl, buildConnector, chosenSites, launch, readSite, SITES, startAppServer, step, until } from './helpers.mjs';
+import { appUrl, buildConnector, chosenSites, launch, quit, readSite, SITES, startAppServer, step, until } from './helpers.mjs';
 
 const sites = chosenSites();
 const shot = async (driver, file) => process.env.SHOTS && writeFileSync(`e2e/.artifacts/${file}.png`, await driver.takeScreenshot(), 'base64');
@@ -419,6 +419,6 @@ try {
   }
   console.error('Screenshots saved in e2e/.artifacts/');
 } finally {
-  await Promise.allSettled([host.quit(), sam.quit(), ana.quit()]);
+  await Promise.allSettled([host, sam, ana].map(quit));
   server.close();
 }
